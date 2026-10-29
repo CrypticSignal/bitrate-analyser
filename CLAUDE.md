@@ -9,7 +9,7 @@ Simplicity and maintainability come first. The owner, or another developer, shou
 - Prefer the simplest solution that works. Don't add abstractions, options or dependencies for hypothetical future needs.
 - Write readable code: descriptive names, one statement per line, normal indentation and spacing. Don't compress code onto single lines.
 - Keep functions small and focused. Keep pure calculations (`analysis.js`, `segments.js`, `bandwidth.js`, `chart-intervals.js`, `progress.js`) separate from DOM code so they stay unit-testable.
-- Comment the *why* for non-obvious rules (timestamp handling, interval boundaries), not the *what*.
+- Comment the _why_ for non-obvious rules (timestamp handling, interval boundaries), not the _what_.
 - When touching existing dense code, leave it easier to read than you found it, without changing behaviour.
 
 ## Commands

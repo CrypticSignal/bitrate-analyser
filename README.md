@@ -34,12 +34,12 @@ Charts show independent horizontal segments spanning each bitrate interval, with
 
 ### Calculation rules
 
-| Result | Calculation |
-| --- | --- |
-| One-second bitrate | Packet bytes × 8 ÷ 1 second, assigned using `floor(timestamp)` |
-| Overall average | All valid selected packet bits ÷ full selected packet timeline |
-| Chart average | Mean of displayed one-second rates, or duration-weighted GOP rates |
-| GOP bitrate | GOP packet bits ÷ GOP duration |
+| Result             | Calculation                                                        |
+| ------------------ | ------------------------------------------------------------------ |
+| One-second bitrate | Packet bytes × 8 ÷ 1 second, assigned using `floor(timestamp)`     |
+| Overall average    | All valid selected packet bits ÷ full selected packet timeline     |
+| Chart average      | Mean of displayed one-second rates, or duration-weighted GOP rates |
+| GOP bitrate        | GOP packet bits ÷ GOP duration                                     |
 
 The packet timeline runs from the earliest selected timestamp to the latest packet end. Missing video durations fall back to average frame rate; other unknown durations count as zero. A zero-length timeline has no overall average.
 
@@ -53,10 +53,10 @@ GOP analysis requires an individual video stream. Keyframes define boundaries in
 
 Expand **HLS / DASH segment analysis** (collapsed by default), then select a local package folder or a manifest and its segment files together. Folder selection preserves nested paths. This reads manifest text and file sizes only—no WASM, packet scan, or remote downloads.
 
-| Format | Supported |
-| --- | --- |
-| HLS | Media playlists with EXTINF durations, initialization maps, and byte ranges |
-| DASH | Static, single-period MPDs with SegmentList or SegmentTemplate/SegmentTimeline, numbered/time templates, BaseURL, and byte ranges |
+| Format | Supported                                                                                                                         |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| HLS    | Media playlists with EXTINF durations, initialization maps, and byte ranges                                                       |
+| DASH   | Static, single-period MPDs with SegmentList or SegmentTemplate/SegmentTimeline, numbered/time templates, BaseURL, and byte ranges |
 
 Master HLS playlists, low-latency part/delta playlists, live or multi-period DASH, and SegmentBase are unsupported. Limits: 5 MiB per manifest and 100,000 segments across representations. Missing files and invalid ranges produce errors.
 
