@@ -207,6 +207,10 @@ try{
  });
  assert.equal(await page.locator('#tooltip-range').textContent(),'1–2 s');
  assert.equal(await page.locator('#interval-highlight').getAttribute('visibility'),'visible');
+ assert.equal(await page.locator('#cursor').count(),0);
+ assert.equal(await page.locator('#tooltip').isVisible(),true);
+ assert.equal(await page.locator('#chart svg #tooltip').count(),0);
+ assert.ok(await page.locator('#interval-highlight').evaluate(rect=>Number(rect.getAttribute('width'))>0));
  const endMarker=page.locator('#chart circle[data-interval-start="0"]');
  assert.ok(await endMarker.evaluate(circle=>Number(circle.getAttribute('cx'))>55));
  await endMarker.dispatchEvent('pointermove',{clientX:0,clientY:0});
@@ -281,6 +285,7 @@ try{
  });
  await mobile.touchscreen.tap(tapPoint.x,tapPoint.y);
  assert.equal(await mobile.locator('#tooltip-range').textContent(),'1–2 s');
+ assert.ok(await mobile.locator('#tooltip').evaluate(tooltip=>{const rect=tooltip.getBoundingClientRect();return rect.left>=0&&rect.right<=innerWidth&&rect.top>=0&&rect.bottom<=innerHeight;}));
  await mobile.locator('#chart svg').dispatchEvent('pointerleave',{pointerType:'touch'});
  assert.equal(await mobile.locator('#tooltip-range').textContent(),'1–2 s');
  await mobile.locator('#file-info-title').tap();

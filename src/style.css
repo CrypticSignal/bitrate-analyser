@@ -20,4 +20,6 @@
 
 .results>.chart-panel{margin-top:0}#file-info{margin-top:0}#file-info>summary{cursor:pointer;font-size:13px;font-weight:500}#file-info>summary:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
 
-#chart #cursor,#chart #interval-highlight{pointer-events:none}
+#chart #interval-highlight{pointer-events:none}
+
+#chart #tooltip{position:absolute;z-index:2;pointer-events:none;width:max-content;max-width:calc(100% - 16px);padding:10px 12px;border:1px solid #6a8660;border-radius:6px;background:#10191bf5;box-shadow:0 4px 16px #0006;color:#dce5e3;font-size:12px;line-height:1.6;overflow-wrap:anywhere}#tooltip-range{display:block;color:var(--accent)}
