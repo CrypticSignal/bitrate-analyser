@@ -13,3 +13,5 @@
 .bandwidth-panel>summary,.segment-panel>summary{cursor:pointer;font-size:14px;font-weight:500}.bandwidth-panel>summary:focus-visible,.segment-panel>summary:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
 
 .chart-panel+.metrics{margin-top:20px}
+
+#analysis-progress{margin-top:18px}#progress-label{display:block;font-size:11px;line-height:1.6;color:var(--muted);margin-bottom:8px}#progress-bar{display:block;width:100%;height:10px;accent-color:var(--accent)}

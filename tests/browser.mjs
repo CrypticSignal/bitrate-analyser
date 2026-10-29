@@ -37,10 +37,11 @@ try{
  async function wasm(path,options={}){
   const bytes=await readFile(path);
   return page.evaluate(async({bytes,name,options})=>new Promise((resolve,reject)=>{
+   const progress=[];
    const worker=new Worker('./probe-worker.js',{type:'module'});
    const timer=setTimeout(()=>{worker.terminate();reject(new Error('WASM test timeout'));},60000);
    const finish=()=>{clearTimeout(timer);worker.terminate();};
-   worker.onmessage=({data})=>{if(data.type==='streams'){finish();resolve(data);}else if(data.type==='result'){finish();resolve(data.result);}else if(data.type==='error'){finish();reject(new Error(data.message));}};
+   worker.onmessage=({data})=>{if(data.type==='progress'){progress.push(data);}else if(data.type==='streams'){finish();resolve(data);}else if(data.type==='result'){finish();resolve({...data.result,test_progress:progress});}else if(data.type==='error'){finish();reject(new Error(data.message));}};
    worker.onerror=e=>{finish();reject(new Error(e.message));};
    worker.postMessage({file:new File([Uint8Array.from(atob(bytes),c=>c.charCodeAt(0))],name),mode:'seconds',timestamp:'pts',stream:'auto',includePartial:false,...options});
   }),{bytes:bytes.toString('base64'),name:path.split('/').at(-1),options});
@@ -98,12 +99,16 @@ try{
   const packets=data.packets.filter(p=>tracks.some(s=>p.stream_index===s.index)).map(p=>({time:Number(p[`${options.timestamp||'pts'}_time`]),size:Number(p.size),duration:Number(p.duration_time)||(tracks.find(s=>s.index===p.stream_index).fps>0?1/tracks.find(s=>s.index===p.stream_index).fps:0),keyframe:p.flags?.includes('K')}));
   return analyze(packets,{mode:options.mode||'seconds',includePartial:options.includePartial||false,video:tracks[0].type==='video'});
  }
- for(const [path,options] of [[video,{}],[video,{timestamp:'dts'}],[video,{stream:'combined',timestamp:'dts'}],[multi,{stream:'combined',timestamp:'dts',includePartial:true}],[video,{mode:'gop'}],[video,{mode:'gop',timestamp:'dts'}],[video,{stream:'1'}],[audio,{}],[flac,{}],[mkv,{mode:'gop'}],[ts,{timestamp:'dts'}],[short,{includePartial:true}]]){
+ for(const [path,options] of [[video,{}],[video,{timestamp:'dts',timeline:{start:0,duration:3.2}}],[video,{stream:'combined',timestamp:'dts'}],[multi,{stream:'combined',timestamp:'dts',includePartial:true}],[video,{mode:'gop'}],[video,{mode:'gop',timestamp:'dts'}],[video,{stream:'1'}],[audio,{}],[flac,{}],[mkv,{mode:'gop'}],[ts,{timestamp:'dts'}],[short,{includePartial:true}]]){
   const actual=await wasm(path,options),expected=native(path,options);
   for(const key of path===short?['total_bytes']:['total_packets','total_bytes'])assert.equal(actual[key],expected[key],`${path} ${key}`);
   assert.equal(actual.points.length,expected.points.length,`${path} interval count`);
   for(let i=0;i<actual.points.length;i++)for(const key of path===short?['time','duration','bytes','bitrate_mbps']:['time','duration','bytes','packets','bitrate_mbps'])assert.ok(Math.abs(actual.points[i][key]-expected.points[i][key])<1e-5,`${path} interval ${i} ${key}: ${actual.points[i][key]} vs ${expected.points[i][key]}`);
   if(options.stream==='combined'){assert.deepEqual(actual.selected_streams.map(s=>s.index),path===multi?[0,2]:[0,1]);assert.equal(actual.stream.index,'combined');for(const point of actual.points){assert.equal(point.video_bytes+point.audio_bytes,point.bytes);assert.ok(Math.abs(point.video_bitrate_mbps+point.audio_bitrate_mbps-point.bitrate_mbps)<1e-12);}}
+  assert.ok(actual.test_progress.some(p=>p.stage==='loading'));
+  assert.ok(actual.test_progress.some(p=>p.stage==='scanning'&&p.packets>0));
+  assert.ok(actual.test_progress.some(p=>p.stage==='calculating'));
+  if(options.timeline)assert.ok(actual.test_progress.some(p=>p.stage==='scanning'&&Number.isFinite(p.percent)&&p.percent<100));
   console.log('Native parity:',path.split('/').at(-1),JSON.stringify(options));
  }
  await assert.rejects(()=>wasm(audio,{stream:'combined'}),/requires a video/);
@@ -114,9 +119,11 @@ try{
  await page.locator('#file').setInputFiles(video);
  await page.locator('#cancel').click();
  assert.equal(await page.locator('#stream').isEnabled(),true);
+ assert.equal(await page.locator('#analysis-progress').isVisible(),false);
  await page.locator('#file').setInputFiles(bad);
  await page.getByText('Analysis stopped',{exact:true}).waitFor({timeout:60000});
  assert.equal(await page.locator('#stream').isEnabled(),true);
+ assert.equal(await page.locator('#analysis-progress').isVisible(),false);
  assert.match(await page.locator('#message').innerText(),/Invalid|invalid|media|input/i);
  // Replacing an in-flight probe must not allow stale stream metadata through.
  await page.locator('#file').setInputFiles(audio);
@@ -162,6 +169,8 @@ try{
  assert.equal(await page.locator('#stream option').count(),4);
  assert.equal(await page.locator('#stream').inputValue(),'auto');
  assert.equal(await page.locator('[name=timestamp]:checked').inputValue(),'dts');
+ assert.equal(await page.locator('#progress-bar').evaluate(bar=>bar.value),100);
+ assert.equal(await page.locator('#progress-label').innerText(),'Analysis complete · 100%');
  for(const id of ['whole-average','average','peak','minimum','duration'])assert.match(await page.locator('#'+id).innerText(),/\d+(?:\.\d{3})?(?:Mbps|kbps|sec)$/);
  assert.match(await page.locator('#message').innerText(),/excluded from the chart and statistics: -0\.080-0 s, 3-3\.120 s\./);
  await page.locator('#stream').selectOption('combined');

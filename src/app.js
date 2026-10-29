@@ -1,6 +1,13 @@
 'use strict';
 const $ = id => document.getElementById(id);
 let result = null;
+let fileMetadata=null;
+function showProgress(data){
+  $('analysis-progress').hidden=false;
+  $('progress-label').textContent=data.message;
+  if(Number.isFinite(data.percent))$('progress-bar').value=data.percent;
+  else $('progress-bar').removeAttribute('value');
+}
 const fmt = (value, digits = 2) => Number(value).toLocaleString(undefined, {maximumFractionDigits: digits, minimumFractionDigits: Number.isInteger(Number(Number(value).toFixed(digits))) ? 0 : digits});
 function streamOptions(metadata){
   return [new Option('Auto · first video, otherwise audio','auto'),
@@ -53,6 +60,7 @@ function showFileInfo(metadata,file){
 }
 function sourceChanged() {
   if(activeWorker)fail('Source changed. Start a new analysis.');
+  fileMetadata=null;$('analysis-progress').hidden=true;
   populatePairing(null,true);
   $('file-info').hidden=true;$('file-summary').replaceChildren();$('file-streams').replaceChildren();
   const file = $('file').files[0];
@@ -64,13 +72,15 @@ function sourceChanged() {
   $('analyze').disabled=true;$('stream').disabled=true;$('cancel').hidden=false;
   $('status').textContent='Reading streams';$('message').className='';
   $('message').textContent='Reading stream information…';
+  showProgress({message:'Reading stream information…'});
   try{
     const worker=new Worker(new URL('./probe-worker.js',import.meta.url),{type:'module'});
     activeWorker=worker;
     worker.onmessage=({data})=>{
       if(activeWorker!==worker)return;
-      if(data.type==='progress')$('message').textContent=data.message;
+      if(data.type==='progress'){showProgress(data);$('message').textContent=data.message;}
       else if(data.type==='streams'){
+        fileMetadata=data.metadata;
         showFileInfo(data.metadata,file);populatePairing(data.metadata,true);
         $('stream').replaceChildren(...streamOptions(data.metadata));
         $('stream').value='auto';updateMode();finish();
@@ -98,7 +108,7 @@ function finish() {
   if(activeWorker)activeWorker.terminate();
   activeWorker=null;clearTimeout(activeTimer);
   $('analyze').disabled=false;$('analyze').innerHTML='Analyze media <span>↗</span>';
-  $('cancel').hidden=true;$('stream').disabled=false;
+  $('cancel').hidden=true;$('stream').disabled=false;$('analysis-progress').hidden=true;
 }
 function fail(message) {
   $('message').className='error';$('message').textContent=message;
@@ -111,6 +121,7 @@ $('analysis-form').addEventListener('submit', event => {
   if(!file)return;
   if(!('Worker' in window)||!('WebAssembly' in window)){fail('This browser needs Web Workers and WebAssembly support.');return;}
   $('analyze').disabled=true;$('analyze').textContent='Analyzing locally…';$('cancel').hidden=false;
+  showProgress({message:'Starting local analysis…'});
   $('message').className='';$('message').textContent='Starting local analysis…';$('status').textContent='Analysis in progress';
   try {
     const worker=new Worker(new URL('./probe-worker.js',import.meta.url),{type:'module'});
@@ -118,7 +129,7 @@ $('analysis-form').addEventListener('submit', event => {
     activeWorker=worker;
     activeWorker.onmessage=({data})=>{
       if(activeWorker!==worker)return;
-      if(data.type==='progress')$('message').textContent=data.message;
+      if(data.type==='progress'){showProgress(data);$('message').textContent=data.message;}
       else if(data.type==='metadata'){
         populatePairing(data.metadata);
         $('stream').replaceChildren(...streamOptions(data.metadata));
@@ -126,6 +137,7 @@ $('analysis-form').addEventListener('submit', event => {
         updateMode();
       }else if(data.type==='result'){
         result=data.result;render();finish();
+        showProgress({percent:100,message:'Analysis complete · 100%'});
         document.querySelector('.chart-panel').scrollIntoView({
           behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'
         });
@@ -133,7 +145,7 @@ $('analysis-form').addEventListener('submit', event => {
       else if(data.type==='error')fail(data.message);
     };
     activeWorker.onerror=()=>{if(activeWorker===worker)fail('The browser could not run FFprobe. Check that the WASM assets are served correctly, or try a smaller file or another browser.');};
-    activeWorker.postMessage({file,mode:$('mode').value,timestamp:document.querySelector('[name=timestamp]:checked').value,stream:$('stream').value,includePartial:$('partial').checked,pairing:{video:$('video-track').value,audio:$('audio-track').value}});
+    activeWorker.postMessage({file,mode:$('mode').value,timestamp:document.querySelector('[name=timestamp]:checked').value,stream:$('stream').value,timeline:{start:fileMetadata?.container.start_time,duration:fileMetadata?.duration},includePartial:$('partial').checked,pairing:{video:$('video-track').value,audio:$('audio-track').value}});
     activeTimer=setTimeout(()=>fail('Analysis exceeded five minutes. Try a shorter clip or a faster device.'),300000);
   }catch(error){fail(error.message);}
 });

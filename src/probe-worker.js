@@ -1,12 +1,13 @@
 import createFFmpegCore from './vendor/ffmpeg-core.js';
 import {analyze,normalizeMetadata,parsePacket,playbackStreams} from './analysis.js';
+import {scanProgress} from './progress.js';
 const MAX_PACKETS=2_000_000;
 // WORKERFS reads slices of the read-only browser File; no input MEMFS copy.
-self.onmessage=async({data:{file,mode,timestamp,stream,includePartial,pairing={},metadataOnly=false}})=>{
+self.onmessage=async({data:{file,mode,timestamp,stream,includePartial,pairing={},timeline={},metadataOnly=false}})=>{
   let core,mounted=false;
   try{
     if(!file?.size)throw new Error('Choose a nonempty media file.');
-    self.postMessage({type:'progress',message:'Loading FFprobe WebAssembly…'});
+    self.postMessage({type:'progress',stage:'loading',percent:null,message:'Loading FFprobe WebAssembly…'});
     const wasmURL=new URL('./vendor/ffmpeg-core.wasm',import.meta.url).href;
     core=await createFFmpegCore({mainScriptUrlOrBlob:import.meta.url+'#'+btoa(JSON.stringify({wasmURL}))});
     if(typeof core._ffprobe!=='function'||!core.FS.filesystems.WORKERFS)throw new Error('The loaded WASM build needs FFprobe and WORKERFS support.');
@@ -15,6 +16,7 @@ self.onmessage=async({data:{file,mode,timestamp,stream,includePartial,pairing={}
     const name='media'+suffix,path='/input/'+name;
     core.FS.mount(core.FS.filesystems.WORKERFS,{blobs:[{name,data:file}]},'/input');mounted=true;
     const streams=[],byStream=new Map(),rejectedByStream=new Map();let format={},errors='',seen=0,version='unknown';
+    const estimate=scanProgress(timeline);let furthest=null,lastProgress=0;
     core.setLogger(({type,message})=>{
       if(type!=='stdout'){errors=(errors+'\n'+message).slice(-3000);return;}
       const parts=message.split(/(?<!\\)\|/),kind=parts.shift();
@@ -24,7 +26,14 @@ self.onmessage=async({data:{file,mode,timestamp,stream,includePartial,pairing={}
         const packet=parsePacket(parts.join('|'),timestamp);
         if(packet===false){const index=Number(row.stream_index);rejectedByStream.set(index,(rejectedByStream.get(index)||0)+1);}
         else if(packet){const index=Number(row.stream_index);if(!byStream.has(index))byStream.set(index,[]);byStream.get(index).push(packet);}
-        if(seen%25000===0)self.postMessage({type:'progress',message:`Read ${seen.toLocaleString()} packets locally…`});
+        // DTS tracks demux/decode order even when PTS is reordered by B-frames.
+        const rawTime=row.dts_time&&row.dts_time!=='N/A'?row.dts_time:row.pts_time;
+        const time=rawTime===undefined||rawTime==='N/A'?NaN:Number(rawTime);
+        if(Number.isFinite(time))furthest=furthest===null?time:Math.max(furthest,time);
+        if(seen===1||seen%256===0){
+          const now=performance.now();
+          if(seen===1||now-lastProgress>=150){self.postMessage({type:'progress',...estimate(furthest,seen)});lastProgress=now;}
+        }
       }else if(kind==='stream'){
         streams.push({...row,index:Number(row.index),disposition:{attached_pic:Number(row['disposition:attached_pic']),default:Number(row['disposition:default'])}});
       }else if(kind==='format')format=row;
@@ -35,7 +44,7 @@ self.onmessage=async({data:{file,mode,timestamp,stream,includePartial,pairing={}
     args.push('-show_streams','-show_format','-show_program_version','-show_entries',
       (metadataOnly?'':'packet=stream_index,pts_time,dts_time,duration_time,size,flags:')+'stream=index,codec_name,codec_long_name,codec_tag_string,profile,codec_type,bit_rate,duration,width,height,avg_frame_rate,sample_rate,channels:stream_disposition=attached_pic,default:format=format_name,format_long_name,duration,bit_rate,start_time:program_version=version',
       '-of','compact=p=1',path);
-    self.postMessage({type:'progress',message:metadataOnly?'Reading stream information…':'Inspecting packets on your device…'});
+    self.postMessage({type:'progress',stage:metadataOnly?'reading':'scanning',percent:null,message:metadataOnly?'Reading stream information…':'Inspecting packets on your device…'});
     // core 0.12.10's JS ffprobe() wrapper discards the C return value and
     // returns its untouched ret=-1. Use the exported C entrypoint so failures
     // are checked correctly. This worker invokes it once, then is destroyed.
@@ -43,6 +52,7 @@ self.onmessage=async({data:{file,mode,timestamp,stream,includePartial,pairing={}
     if(code!==0)throw new Error(errors.trim()||'FFprobe could not read this media. The format may not be included in this WASM build.');
     const info=normalizeMetadata({streams,format});
     if(metadataOnly){self.postMessage({type:'streams',metadata:info,scanned_packets:seen});return;}
+    self.postMessage({type:'progress',stage:'calculating',percent:null,packets:seen,message:`Calculating bitrate statistics · ${seen.toLocaleString()} packets read`});
     const combined=stream==='combined';
     if(combined&&mode==='gop')throw new Error('Combined video + audio bitrate uses one-second intervals. Select a single video stream for GOP analysis.');
     const selectedStreams=combined?playbackStreams(info.streams,pairing):[stream==='auto'?info.streams.find(s=>s.type==='video'&&!s.attached_picture)||(info.streams.find(s=>s.type==='audio')||info.streams[0]):info.streams.find(s=>String(s.index)===stream)];

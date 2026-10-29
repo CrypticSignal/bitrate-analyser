@@ -26,6 +26,8 @@ Selecting a file loads container and audio/video track information before analys
 - **Timestamps:** DTS by default; PTS is optional. Negative timestamps are supported.
 - **Comparison:** after combined analysis, overlay video, audio, and total bitrate on the same timeline without rescanning.
 
+Progress shows engine loading, stream discovery, packet scanning, and calculation stages. Scan percentages estimate timestamp coverage using the metadata probe; missing duration gives an indeterminate bar with packet counts. Updates are throttled, require no extra scan, and reach 100% only after successful analysis.
+
 Charts support hover values and filled areas. JSON/CSV retain every interval, including comparison components; SVG exports the displayed chart. GOP tables show up to 500 rows. Rates use decimal Mbps in exports, with kbps displayed for audio. Displayed values use three decimal places, omitting decimals for whole numbers.
 
 ### Calculation rules
