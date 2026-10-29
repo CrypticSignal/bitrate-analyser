@@ -192,6 +192,10 @@ try{
  assert.equal(await page.locator('#whole-average').innerText(),selectedAverage);
  await page.locator('#compare').uncheck();
  assert.equal(await page.locator('#chart path[data-series]').count(),1);
+ assert.equal(await page.locator('#filled').isChecked(),true);
+ assert.ok(await page.locator('#chart path[data-interval-fill]').count()>0);
+ await page.locator('#filled').uncheck();assert.equal(await page.locator('#chart path[data-interval-fill]').count(),0);
+ await page.locator('#filled').check();
  const intervalLine=await page.locator('#chart path[data-series]').getAttribute('d');
  assert.match(intervalLine,/H.*M.*H/);
  assert.doesNotMatch(intervalLine,/[VL]/);
@@ -270,6 +274,17 @@ try{
   await mobile.locator('.results[data-state="complete"]').waitFor({timeout:60000});
   await mobile.waitForFunction(()=>{const rect=document.querySelector('.chart-panel').getBoundingClientRect();return scrollY>0&&rect.top>=-1&&rect.top<50;},{},{timeout:5000});
  }
+ const tapPoint=await mobile.evaluate(()=>{
+  const svg=document.querySelector('#chart svg'),width=svg.viewBox.baseVal.width;
+  const point=new DOMPoint(55+(1.9/3)*(width-15-55),150).matrixTransform(svg.getScreenCTM());
+  return {x:point.x,y:point.y};
+ });
+ await mobile.touchscreen.tap(tapPoint.x,tapPoint.y);
+ assert.equal(await mobile.locator('#tooltip-range').textContent(),'1–2 s');
+ await mobile.locator('#chart svg').dispatchEvent('pointerleave',{pointerType:'touch'});
+ assert.equal(await mobile.locator('#tooltip-range').textContent(),'1–2 s');
+ await mobile.locator('#file-info-title').tap();
+ assert.equal(await mobile.locator('#tooltip-range').textContent(),'');
  await mobileContext.close();
  assert.deepEqual(pageErrors,[]);assert.ok(requests.every(r=>r.method==='GET'&&r.url.startsWith(origin+'/')),'No uploads or external requests');
  console.log('Browser UI, cancellation, exports, mobile layout, and no-upload checks passed.');

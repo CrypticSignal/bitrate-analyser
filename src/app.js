@@ -256,7 +256,7 @@ function drawChart() {
   const primary=lines[0],path=makePath(primary),sampled=primary.sampled;
   const fill=$('filled').checked?sampled.map(p=>{
     const {start,end}=intervalBounds(p,chartData);
-    return `<path d="M${x(start)},${bottom} V${y(p[primary.key])} H${x(end)} V${bottom} Z" fill="#baf28a" opacity=".12"/>`;
+    return `<path data-interval-fill d="M${x(start)},${bottom} V${y(p[primary.key])} H${x(end)} V${bottom} Z" fill="#baf28a" opacity=".12"/>`;
   }).join(''):'';
   const paths=lines.map(line=>`<path data-series="${line.id}" d="${makePath(line)}" fill="none" stroke="${line.color}" stroke-width="2" stroke-linejoin="round"><title>${line.label}</title></path>`).join('');
   const markers=lines.map(line=>line.sampled.map(p=>`<circle data-interval-start="${p.time}" cx="${x(intervalBounds(p,chartData).end).toFixed(2)}" cy="${y(p[line.key]).toFixed(2)}" r="2" fill="${line.color}"/>`).join('')).join('');
@@ -264,7 +264,7 @@ function drawChart() {
   $('legend').textContent=compare?'Video + audio comparison · Mbps':`${r.stream.type==='combined'?'Video + audio':r.stream.type} · ${unit}`;
   $('chart').innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${compare?'Video, audio and combined bitrate':'Bitrate'} over time in ${unit}"><rect width="${width}" height="350" fill="#142022"/><g font-family="system-ui,sans-serif" font-size="12" fill="#91a69c">${grid}<text x="${left}" y="13">${unit}</text></g><rect id="interval-highlight" y="${top}" height="${bottom-top}" fill="#baf28a" opacity=".10" visibility="hidden"/>${fill}${paths}${markers}<line id="cursor" x1="0" x2="0" y1="${top}" y2="${bottom}" stroke="#799b75" visibility="hidden"/><text id="tooltip" x="${right}" y="14" text-anchor="end" fill="#dbeecf" font-family="system-ui" font-size="10"><tspan id="tooltip-range" x="${right}" y="14"></tspan><tspan id="tooltip-rates" x="${right}" y="29"></tspan></text></svg>`;
   const svg = $('chart').querySelector('svg');
-  svg.addEventListener('pointermove', event => {
+  const showInterval=event=>{
     const point = new DOMPoint(event.clientX,event.clientY).matrixTransform(svg.getScreenCTM().inverse());
     const time = start+(point.x-left)/(right-left)*(end-start);
     const marker=event.target.closest('[data-interval-start]');
@@ -274,9 +274,18 @@ function drawChart() {
     const cursor = svg.querySelector('#cursor'); cursor.setAttribute('x1',x(bounds.end)); cursor.setAttribute('x2',x(bounds.end)); cursor.setAttribute('visibility','visible');
     svg.querySelector('#tooltip-range').textContent=`${fmt(bounds.start,3)}–${fmt(bounds.end,3)} s${p.complete===false?' (partial second)':''}`;
     svg.querySelector('#tooltip-rates').textContent=compare?`V ${fmt(p.video_bitrate_mbps,3)} · A ${fmt(p.audio_bitrate_mbps,3)} · Σ ${fmt(p.bitrate_mbps,3)} Mbps`:`${fmt(p.bitrate_mbps*scale,3)} ${unit}`;
-  });
-  svg.addEventListener('pointerleave', () => {svg.querySelector('#cursor').setAttribute('visibility','hidden');svg.querySelector('#tooltip-range').textContent='';svg.querySelector('#tooltip-rates').textContent='';svg.querySelector('#interval-highlight').setAttribute('visibility','hidden');});
+  };
+  svg.addEventListener('pointermove',showInterval);
+  svg.addEventListener('pointerdown',showInterval);
+  // A finger has no hover state: retain the tapped range after pointerup/leave.
+  svg.addEventListener('pointerleave',event=>{if(event.pointerType!=='touch')hideIntervalTooltip();});
+  svg.addEventListener('pointercancel',hideIntervalTooltip);
 }
+function hideIntervalTooltip(){
+  for(const id of ['cursor','interval-highlight'])$(id)?.setAttribute('visibility','hidden');
+  for(const id of ['tooltip-range','tooltip-rates'])if($(id))$(id).textContent='';
+}
+document.addEventListener('pointerdown',event=>{if(!event.target.closest('#chart'))hideIntervalTooltip();});
 $('filled').addEventListener('change', drawChart);
 $('compare').addEventListener('change',drawChart);
 function download(content,type,extension) {
