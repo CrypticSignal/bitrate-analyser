@@ -27,7 +27,7 @@ function showFileInfo(metadata,file){
     ['File',file.name],['Size',`${file.size.toLocaleString()} bytes (${fmt(file.size/1e6)} MB)`],
     ['Container',container.long_name?`${container.long_name} (${container.name})`:container.name||unavailable],
     ['Duration',metadata.duration>0?seconds(metadata.duration):unavailable],
-    ['Reported overall bitrate',rate(container.bit_rate)],['Start time',seconds(container.start_time)]
+    ['Reported overall bitrate',rate(container.bit_rate)],['Container start time',seconds(container.start_time)]
   ]));
   $('file-streams').replaceChildren(...metadata.streams.map(stream=>{
     const section=document.createElement('section'),heading=document.createElement('h4'),details=document.createElement('dl');
