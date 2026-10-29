@@ -126,14 +126,14 @@ try{
  assert.equal(await page.locator('#stream').isEnabled(),true);
  assert.equal(await page.locator('#analysis-progress').isVisible(),false);
  await page.locator('#file').setInputFiles(bad);
- await page.getByText('Analysis stopped',{exact:true}).waitFor({timeout:60000});
+ await page.locator('.results[data-state="error"]').waitFor({timeout:60000});
  assert.equal(await page.locator('#stream').isEnabled(),true);
  assert.equal(await page.locator('#analysis-progress').isVisible(),false);
  assert.match(await page.locator('#message').innerText(),/Invalid|invalid|media|input/i);
  // Replacing an in-flight probe must not allow stale stream metadata through.
  await page.locator('#file').setInputFiles(audio);
  await page.locator('#file').setInputFiles(multi);
- await page.getByText('Streams ready',{exact:true}).waitFor({timeout:60000});
+ await page.locator('.results[data-state="ready"]').waitFor({timeout:60000});
  assert.equal(await page.locator('#stream option').count(),5);
  assert.equal(await page.locator('#file-info').isVisible(),true);
  const reported=JSON.parse(run('ffprobe',['-v','error','-show_format','-show_streams','-of','json',multi]));
@@ -153,24 +153,24 @@ try{
  await page.locator('#stream').selectOption('combined');
  assert.equal(await page.locator('#pairing').isVisible(),true);
  await page.locator('#audio-track').selectOption('1');
- await page.locator('#analyze').click();await page.getByText('Analysis complete',{exact:true}).waitFor({timeout:60000});
+ await page.locator('#analyze').click();await page.locator('.results[data-state="complete"]').waitFor({timeout:60000});
  assert.match(await page.locator('#details').innerText(),/#0.*video.*#1.*audio/);
  assert.equal(await page.locator('#audio-track').inputValue(),'1');
  await page.locator('#stream').selectOption('2');
- await page.locator('#analyze').click();await page.getByText('Analysis complete',{exact:true}).waitFor({timeout:60000});
+ await page.locator('#analyze').click();await page.locator('.results[data-state="complete"]').waitFor({timeout:60000});
  assert.match(await page.locator('#details').innerText(),/#2.*audio/);
  await page.locator('#file').setInputFiles(audio);
- await page.getByText('Streams ready',{exact:true}).waitFor({timeout:60000});
+ await page.locator('.results[data-state="ready"]').waitFor({timeout:60000});
  assert.equal(await page.locator('#stream option').count(),2);
  assert.equal(await page.locator('#file-streams section').count(),1);
  assert.match(await page.locator('#file-summary').innerText(),/audio.mp3/);
  assert.equal(await page.locator('#stream').inputValue(),'auto');
  await page.locator('#file').setInputFiles(video);
- await page.getByText('Streams ready',{exact:true}).waitFor({timeout:60000});
+ await page.locator('.results[data-state="ready"]').waitFor({timeout:60000});
  assert.equal(await page.locator('#stream option').count(),4);
  assert.equal(await page.locator('#stream').inputValue(),'auto');
  await page.locator('#analyze').click();
- await page.getByText('Analysis complete',{exact:true}).waitFor({timeout:60000});
+ await page.locator('.results[data-state="complete"]').waitFor({timeout:60000});
  assert.equal(await page.locator('#stream option').count(),4);
  assert.equal(await page.locator('#stream').inputValue(),'auto');
  assert.equal(await page.locator('[name=timestamp]:checked').inputValue(),'dts');
@@ -191,7 +191,7 @@ try{
  assert.match(await page.locator('#message').innerText(),/excluded from the chart and statistics: -0\.080-0 s, 3-3\.120 s\./);
  await page.locator('#stream').selectOption('combined');
  assert.equal(await page.locator('#mode option[value=gop]').evaluate(option=>option.disabled),true);
- await page.locator('#analyze').click();await page.getByText('Analysis complete',{exact:true}).waitFor({timeout:60000});
+ await page.locator('#analyze').click();await page.locator('.results[data-state="complete"]').waitFor({timeout:60000});
  assert.equal(await page.locator('#stream').inputValue(),'combined');
  assert.match(await page.locator('#details').innerText(),/#0.*video.*#1.*audio/);
  assert.equal(await page.locator('#legend').innerText(),'Video + audio · Mbps');
@@ -209,14 +209,14 @@ try{
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  await page.setViewportSize({width:1440,height:1000});
 
- await page.locator('#stream').selectOption('1');await page.locator('#analyze').click();await page.getByText('Analysis complete',{exact:true}).waitFor({timeout:60000});
+ await page.locator('#stream').selectOption('1');await page.locator('#analyze').click();await page.locator('.results[data-state="complete"]').waitFor({timeout:60000});
  assert.equal(await page.locator('#stream option').count(),4);
  assert.equal(await page.locator('#compare').isEnabled(),true);
  await page.locator('#compare').check();
  assert.equal(await page.locator('#chart path[data-series]').count(),3);
  await page.locator('#compare').uncheck();
  assert.equal(await page.locator('#chart path[data-series]').count(),1);
- await page.locator('#stream').selectOption('0');await page.locator('#mode').selectOption('gop');await page.locator('#analyze').click();await page.getByText('Analysis complete',{exact:true}).waitFor({timeout:60000});
+ await page.locator('#stream').selectOption('0');await page.locator('#mode').selectOption('gop');await page.locator('#analyze').click();await page.locator('.results[data-state="complete"]').waitFor({timeout:60000});
  assert.ok(await page.locator('#gop-body tr').count()>0);
  assert.equal(await page.locator('#compare').isDisabled(),true);
  await page.locator('#filled').check();await page.locator('#chart svg').hover();
@@ -224,7 +224,7 @@ try{
  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  if(process.env.SCREENSHOT_PATH)await page.screenshot({path:process.env.SCREENSHOT_PATH,fullPage:true});
  await page.emulateMedia({reducedMotion:'reduce'});
- await page.locator('#analyze').click();await page.getByText('Analysis complete',{exact:true}).waitFor({timeout:60000});
+ await page.locator('#analyze').click();await page.locator('.results[data-state="complete"]').waitFor({timeout:60000});
  await page.waitForFunction(()=>{const rect=document.querySelector('.chart-panel').getBoundingClientRect();return rect.top>=-1&&rect.top<50;});
  await page.locator('#analyze').click();await page.locator('#cancel').click();assert.equal(await page.locator('#analyze').isEnabled(),true);
  // Mobile browser emulation, with normal motion and first-analysis layout changes.
@@ -234,11 +234,11 @@ try{
  mobile.on('request',r=>requests.push({url:r.url(),method:r.method()}));
  await mobile.goto(origin);
  await mobile.locator('#file').setInputFiles(video);
- await mobile.getByText('Streams ready',{exact:true}).waitFor({timeout:60000});
+ await mobile.locator('.results[data-state="ready"]').waitFor({timeout:60000});
  for(const motion of ['no-preference','reduce']){
   await mobile.emulateMedia({reducedMotion:motion});
   await mobile.locator('#analyze').click();
-  await mobile.getByText('Analysis complete',{exact:true}).waitFor({timeout:60000});
+  await mobile.locator('.results[data-state="complete"]').waitFor({timeout:60000});
   await mobile.waitForFunction(()=>{const rect=document.querySelector('.chart-panel').getBoundingClientRect();return scrollY>0&&rect.top>=-1&&rect.top<50;},{},{timeout:5000});
  }
  await mobileContext.close();

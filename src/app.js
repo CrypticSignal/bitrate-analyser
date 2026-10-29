@@ -90,7 +90,7 @@ function sourceChanged() {
   updateMode();
   if(!file)return;
   $('analyze').disabled=true;$('stream').disabled=true;$('cancel').hidden=false;
-  $('status').textContent='Reading streams';$('message').className='';
+  document.querySelector('.results').dataset.state='reading';$('message').className='';
   $('message').textContent='Reading stream information…';
   showProgress({message:'Reading stream information…'});
   try{
@@ -104,7 +104,7 @@ function sourceChanged() {
         showFileInfo(data.metadata,file);populatePairing(data.metadata,true);
         $('stream').replaceChildren(...streamOptions(data.metadata));
         $('stream').value='auto';updateMode();finish();
-        $('status').textContent='Streams ready';$('message').textContent='Choose a stream, then analyze the media.';
+        document.querySelector('.results').dataset.state='ready';$('message').textContent='Choose a stream, then analyze the media.';
       }else if(data.type==='error')fail(data.message);
     };
     worker.onerror=()=>{if(activeWorker===worker)fail('Could not read streams. Check the media file and WASM assets.');};
@@ -132,7 +132,7 @@ function finish() {
 }
 function fail(message) {
   $('message').className='error';$('message').textContent=message;
-  $('status').textContent=result?'Previous result shown':'Analysis stopped';finish();
+  document.querySelector('.results').dataset.state='error';finish();
 }
 $('cancel').addEventListener('click',()=>fail('Analysis canceled. Your file has not left your device.'));
 $('analysis-form').addEventListener('submit', event => {
@@ -143,7 +143,7 @@ $('analysis-form').addEventListener('submit', event => {
   if(!('Worker' in window)||!('WebAssembly' in window)){fail('This browser needs Web Workers and WebAssembly support.');return;}
   $('analyze').disabled=true;$('analyze').textContent='Analyzing locally…';$('cancel').hidden=false;
   showProgress({message:'Starting local analysis…'});
-  $('message').className='';$('message').textContent='Starting local analysis…';$('status').textContent='Analysis in progress';
+  $('message').className='';$('message').textContent='Starting local analysis…';document.querySelector('.results').dataset.state='analysing';
   try {
     const worker=new Worker(new URL('./probe-worker.js',import.meta.url),{type:'module'});
     const selection=$('stream').value;
@@ -173,8 +173,7 @@ function metric(id, value, unit) {
 }
 function render() {
   const r = result, audio = r.stream.type === 'audio', scale = audio ? 1000 : 1, unit = audio ? 'kbps' : 'Mbps';
-  $('result-title').textContent = r.filename;
-  $('status').textContent = 'Analysis complete';
+  document.querySelector('.results').dataset.state = 'complete';
   ['average', 'peak', 'minimum'].forEach((id, i) => metric(id, r.bitrate_mbps[['mean','max','min'][i]] * scale, unit));
   metric('whole-average',r.overall_bitrate_mbps===null?null:r.overall_bitrate_mbps*scale,unit);
   const tracks=(r.selected_streams||[r.stream]).map(s=>`#${s.index} · ${s.type} / ${s.codec}`).join(' + ');
