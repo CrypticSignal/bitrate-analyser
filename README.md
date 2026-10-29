@@ -1,4 +1,4 @@
-# Bitrate Plotter WASM
+# Bitrate Analyser
 
 Client-side bitrate, GOP, and streaming bandwidth analysis using FFprobe WebAssembly. Media stays on your device; there are no uploads, API backend, or external asset requests.
 
