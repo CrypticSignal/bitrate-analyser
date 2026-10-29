@@ -40,11 +40,14 @@ try{
    const worker=new Worker('./probe-worker.js',{type:'module'});
    const timer=setTimeout(()=>{worker.terminate();reject(new Error('WASM test timeout'));},60000);
    const finish=()=>{clearTimeout(timer);worker.terminate();};
-   worker.onmessage=({data})=>{if(data.type==='result'){finish();resolve(data.result);}else if(data.type==='error'){finish();reject(new Error(data.message));}};
+   worker.onmessage=({data})=>{if(data.type==='streams'){finish();resolve(data);}else if(data.type==='result'){finish();resolve(data.result);}else if(data.type==='error'){finish();reject(new Error(data.message));}};
    worker.onerror=e=>{finish();reject(new Error(e.message));};
    worker.postMessage({file:new File([Uint8Array.from(atob(bytes),c=>c.charCodeAt(0))],name),mode:'seconds',timestamp:'pts',stream:'auto',includePartial:false,...options});
   }),{bytes:bytes.toString('base64'),name:path.split('/').at(-1),options});
  }
+ const probe=await wasm(multi,{metadataOnly:true});
+ assert.equal(probe.scanned_packets,0,'File information probe must not scan packets');
+ assert.equal(probe.metadata.streams.length,3);
  function native(path,options={}){
   const data=JSON.parse(run('ffprobe',['-v','error','-show_packets','-show_streams','-show_format','-of','json',path]));
   const info=normalizeMetadata(data);const selected=options.stream&&options.stream!=='auto'?info.streams.find(s=>String(s.index)===options.stream):info.streams.find(s=>s.type==='video'&&!s.attached_picture)||info.streams.find(s=>s.type==='audio');
@@ -77,6 +80,20 @@ try{
  await page.locator('#file').setInputFiles(multi);
  await page.getByText('Streams ready',{exact:true}).waitFor({timeout:60000});
  assert.equal(await page.locator('#stream option').count(),5);
+ assert.equal(await page.locator('#file-info').isVisible(),true);
+ const reported=JSON.parse(run('ffprobe',['-v','error','-show_format','-show_streams','-of','json',multi]));
+ const summary=await page.locator('#file-summary').innerText();
+ assert.ok(summary.includes(reported.format.format_name));
+ assert.match(summary,/3\.200 s/);
+ assert.ok(summary.includes((Number(reported.format.bit_rate)/1000).toLocaleString(undefined,{maximumFractionDigits:2,minimumFractionDigits:2})+' kbps'));
+ assert.equal(await page.locator('#file-streams section').count(),3);
+ assert.match(await page.locator('#file-streams').innerText(),/avc1/);
+ assert.match(await page.locator('#file-streams').innerText(),/160 × 90/);
+ assert.match(await page.locator('#file-streams').innerText(),/48,000 Hz/);
+ await page.setViewportSize({width:390,height:844});
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+ await page.setViewportSize({width:1440,height:1000});
+
  assert.equal(await page.locator('#stream').inputValue(),'auto');
  await page.locator('#stream').selectOption('2');
  await page.locator('#analyze').click();await page.getByText('Analysis complete',{exact:true}).waitFor({timeout:60000});
@@ -84,6 +101,8 @@ try{
  await page.locator('#file').setInputFiles(audio);
  await page.getByText('Streams ready',{exact:true}).waitFor({timeout:60000});
  assert.equal(await page.locator('#stream option').count(),2);
+ assert.equal(await page.locator('#file-streams section').count(),1);
+ assert.match(await page.locator('#file-summary').innerText(),/audio.mp3/);
  assert.equal(await page.locator('#stream').inputValue(),'auto');
  await page.locator('#file').setInputFiles(video);
  await page.getByText('Streams ready',{exact:true}).waitFor({timeout:60000});

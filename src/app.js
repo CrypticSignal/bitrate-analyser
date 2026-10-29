@@ -15,8 +15,35 @@ function updateMode(){
   $('partial-hint').textContent=$('mode').value==='gop'?'GOP boundaries are determined by keyframe packet timestamps.':'Bitrate = packet bits in each fixed 1-second interval ÷ 1 second. By default, only full intervals within the stream’s packet timeline are included.';
 }
 $('stream').addEventListener('change',updateMode);
+function showFileInfo(metadata,file){
+  const unavailable='Not reported';
+  const rate=value=>value>0?`${fmt(value/1000)} kbps`:unavailable;
+  const seconds=value=>value!==null&&Number.isFinite(value)?`${fmt(value,3)} s`:unavailable;
+  const list=entries=>entries.flatMap(([key,value])=>[
+    Object.assign(document.createElement('dt'),{textContent:key}),
+    Object.assign(document.createElement('dd'),{textContent:value})]);
+  const container=metadata.container;
+  $('file-summary').replaceChildren(...list([
+    ['File',file.name],['Size',`${file.size.toLocaleString()} bytes (${fmt(file.size/1e6)} MB)`],
+    ['Container',container.long_name?`${container.long_name} (${container.name})`:container.name||unavailable],
+    ['Duration',metadata.duration>0?seconds(metadata.duration):unavailable],
+    ['Reported overall bitrate',rate(container.bit_rate)],['Start time',seconds(container.start_time)]
+  ]));
+  $('file-streams').replaceChildren(...metadata.streams.map(stream=>{
+    const section=document.createElement('section'),heading=document.createElement('h4'),details=document.createElement('dl');
+    heading.textContent=`Stream #${stream.index} · ${stream.type}${stream.default?' · default':''}${stream.attached_picture?' · cover art':''}`;
+    const entries=[['Codec',stream.codec_long_name?`${stream.codec_long_name} (${stream.codec})`:stream.codec],
+      ['Codec tag',stream.codec_tag||unavailable],['Profile',stream.profile||unavailable],
+      ['Reported bitrate',rate(stream.bit_rate)],['Duration',seconds(stream.duration)]];
+    if(stream.type==='video')entries.push(['Resolution',stream.width&&stream.height?`${stream.width} × ${stream.height}`:unavailable],['Average frame rate',stream.fps>0?`${fmt(stream.fps,3)} fps`:unavailable]);
+    if(stream.type==='audio')entries.push(['Sample rate',Number(stream.sample_rate)>0?`${Number(stream.sample_rate).toLocaleString()} Hz`:unavailable],['Channels',stream.channels>0?String(stream.channels):unavailable]);
+    details.replaceChildren(...list(entries));section.append(heading,details);return section;
+  }));
+  $('file-info').hidden=false;
+}
 function sourceChanged() {
   if(activeWorker)fail('Source changed. Start a new analysis.');
+  $('file-info').hidden=true;$('file-summary').replaceChildren();$('file-streams').replaceChildren();
   const file = $('file').files[0];
   $('file-name').textContent = file ? file.name : 'Drop a media file here';
   $('file-size').textContent = file ? `${fmt(file.size / 1024 / 1024, 1)} MB · ready to inspect` : 'or click to browse';
@@ -33,6 +60,7 @@ function sourceChanged() {
       if(activeWorker!==worker)return;
       if(data.type==='progress')$('message').textContent=data.message;
       else if(data.type==='streams'){
+        showFileInfo(data.metadata,file);
         $('stream').replaceChildren(...streamOptions(data.metadata));
         $('stream').value='auto';updateMode();finish();
         $('status').textContent='Streams ready';$('message').textContent='Choose a stream, then analyze the media.';

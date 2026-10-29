@@ -105,3 +105,15 @@ test('combined buckets sum simultaneous packets and preserve track offsets',()=>
  assert.deepEqual(r.points.map(p=>p.bitrate_mbps),[1.1,1.2]);
  assert.equal(r.total_bytes,287500);
 });
+
+
+test('reported metadata preserves rates and distinguishes missing values from zero',()=>{
+ const r=normalizeMetadata({format:{format_name:'mov,mp4',format_long_name:'QuickTime / MOV',duration:'3.2',bit_rate:'123456',start_time:'0'},
+ streams:[{index:0,codec_type:'video',codec_name:'h264',codec_long_name:'H.264',codec_tag_string:'avc1',profile:'High',duration:'3.2',bit_rate:'100000'},
+ {index:1,codec_type:'audio',duration:'N/A',bit_rate:'N/A'}]});
+ assert.equal(r.container.name,'mov,mp4');assert.equal(r.container.bit_rate,123456);assert.equal(r.container.start_time,0);
+ assert.equal(r.streams[0].bit_rate,100000);assert.equal(r.streams[0].duration,3.2);assert.equal(r.streams[0].codec_tag,'avc1');
+ assert.equal(r.streams[1].bit_rate,null);assert.equal(r.streams[1].duration,null);
+ const missing=normalizeMetadata({streams:[{codec_type:'audio'}]});
+ assert.equal(missing.container.bit_rate,null);assert.equal(missing.container.start_time,null);
+});

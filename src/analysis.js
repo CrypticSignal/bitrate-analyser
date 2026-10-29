@@ -68,11 +68,12 @@ export function finiteNumber(value,fallback=0){
 export function normalizeMetadata(data){
   const streams=(data.streams||[]).filter(s=>['audio','video'].includes(s.codec_type)).map(s=>{
     const [a,b]=String(s.avg_frame_rate||'0/1').split('/').map(Number);
-    return {index:s.index,type:s.codec_type,attached_picture:!!Number(s.disposition?.attached_pic),default:!!Number(s.disposition?.default),codec:s.codec_name||'unknown',
+    return {index:s.index,type:s.codec_type,attached_picture:!!Number(s.disposition?.attached_pic),default:!!Number(s.disposition?.default),codec:s.codec_name||'unknown',codec_long_name:s.codec_long_name||null,codec_tag:s.codec_tag_string||null,profile:s.profile||null,
+      bit_rate:finiteNumber(s.bit_rate)>0?finiteNumber(s.bit_rate):null,duration:finiteNumber(s.duration,NaN)>=0?finiteNumber(s.duration):null,
       fps:Number.isFinite(a/b)?a/b:0,width:s.width===undefined?null:finiteNumber(s.width),height:s.height===undefined?null:finiteNumber(s.height),sample_rate:s.sample_rate??null,channels:s.channels===undefined?null:finiteNumber(s.channels)};
   });
   if(!streams.length)throw new Error('No audio or video streams found. This format may not be included in the WASM build.');
-  return {duration:finiteNumber(data.format?.duration),streams};
+  return {duration:finiteNumber(data.format?.duration),container:{name:data.format?.format_name||null,long_name:data.format?.format_long_name||null,bit_rate:finiteNumber(data.format?.bit_rate)>0?finiteNumber(data.format.bit_rate):null,start_time:finiteNumber(data.format?.start_time,null)},streams};
 }
 export function parsePacket(line,timestamp,fps=0){
   const row=Object.fromEntries(line.trim().split('|').filter(p=>p.includes('=')).map(p=>{const at=p.indexOf('=');return [p.slice(0,at),p.slice(at+1)];}));

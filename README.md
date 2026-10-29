@@ -31,7 +31,7 @@ Once built, the app only requests its own static assets. It can run without an I
 - JSON, CSV, and SVG downloads generated in the browser.
 - Cancellable analysis, bounded packet count, timeout, errors, and mobile layout.
 
-Selecting or dropping a file runs a metadata-only probe and populates the stream selector with all audio/video tracks before analysis, with Auto selected. The default selects the first non-cover-art video stream, falling back to audio. Each scan reads all streams so the complete selector remains available. Statistics and exports describe the selected stream or combined selection.
+Selecting or dropping a file runs a metadata-only probe and populates the stream selector with all audio/video tracks before analysis, with Auto selected. The same probe displays file size, container, reported overall bitrate and duration, plus each audio/video track’s codec, reported bitrate/duration, default flag, and video or audio properties. Missing metadata is shown as “Not reported”; these values are separate from measured packet rates. No full packet scan runs until Analyze is clicked. The default selects the first non-cover-art video stream, falling back to audio. Each scan reads all streams so the complete selector remains available. Statistics and exports describe the selected stream or combined selection.
 
 Choose **Combined · default video + audio** for a streaming bandwidth estimate. This sums packet bytes from one non-cover-art video track and one audio track in shared one-second buckets, preserving their timestamp offsets. Each type prefers the first track marked as default, falling back to the first track of that type. Video-only files use video alone; audio-only files use individual stream selection. Actual players may choose different tracks based on language or user preferences. Results identify the chosen tracks, and JSON exports include their metadata. DTS is selected by default; PTS remains available.
 
@@ -78,7 +78,7 @@ TEST_BROWSER_EXECUTABLE=/usr/bin/chromium npm run test:browser
 
 The tests cover:
 
-- Seventeen deterministic calculation/parsing tests, including negative timestamps, partial/sparse seconds and variable final GOP duration.
+- Eighteen deterministic calculation/parsing tests, including negative timestamps, partial/sparse seconds and variable final GOP duration.
 - Twelve real WASM/native comparisons, including combined video/audio and multiple audio tracks: H.264/AAC MP4 in PTS, DTS, GOP/PTS, GOP/DTS and embedded-audio modes; MP3; FLAC; VP9/Matroska GOPs; H.264/MPEG-TS DTS; short WAV partial buckets.
 - Exact packet/byte counts and interval values for the compressed-media cases. WAV compares bytes and bucket rates because packetization differs between engine versions.
 - Invalid media, audio GOP rejection, short-clip errors, stream switching in both directions, cancellation, exports, chart interaction and mobile overflow.

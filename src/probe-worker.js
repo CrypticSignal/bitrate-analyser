@@ -1,5 +1,5 @@
 import createFFmpegCore from './vendor/ffmpeg-core.js';
-import {analyze,normalizeMetadata,parsePacket,finiteNumber,playbackStreams} from './analysis.js';
+import {analyze,normalizeMetadata,parsePacket,playbackStreams} from './analysis.js';
 const MAX_PACKETS=2_000_000;
 // WORKERFS reads slices of the read-only browser File; no input MEMFS copy.
 self.onmessage=async({data:{file,mode,timestamp,stream,includePartial,metadataOnly=false}})=>{
@@ -14,10 +14,10 @@ self.onmessage=async({data:{file,mode,timestamp,stream,includePartial,metadataOn
     const suffix=(file.name.match(/\.[a-z0-9]{1,12}$/i)||[''])[0];
     const name='media'+suffix,path='/input/'+name;
     core.FS.mount(core.FS.filesystems.WORKERFS,{blobs:[{name,data:file}]},'/input');mounted=true;
-    const streams=[],byStream=new Map(),rejectedByStream=new Map();let duration=0,errors='',seen=0,version='unknown';
+    const streams=[],byStream=new Map(),rejectedByStream=new Map();let format={},errors='',seen=0,version='unknown';
     core.setLogger(({type,message})=>{
       if(type!=='stdout'){errors=(errors+'\n'+message).slice(-3000);return;}
-      const parts=message.split('|'),kind=parts.shift();
+      const parts=message.split(/(?<!\\)\|/),kind=parts.shift();
       const row=Object.fromEntries(parts.filter(p=>p.includes('=')).map(p=>{const i=p.indexOf('=');return [p.slice(0,i),p.slice(i+1)];}));
       if(kind==='packet'){
         if(++seen>MAX_PACKETS)throw new Error('This file exceeds the two million packet limit. Choose a shorter clip.');
@@ -27,13 +27,13 @@ self.onmessage=async({data:{file,mode,timestamp,stream,includePartial,metadataOn
         if(seen%25000===0)self.postMessage({type:'progress',message:`Read ${seen.toLocaleString()} packets locally…`});
       }else if(kind==='stream'){
         streams.push({...row,index:Number(row.index),disposition:{attached_pic:Number(row['disposition:attached_pic']),default:Number(row['disposition:default'])}});
-      }else if(kind==='format')duration=finiteNumber(row.duration);
+      }else if(kind==='format')format=row;
       else if(kind==='program_version')version=row.version||'unknown';
     });
     const args=['./ffprobe','-v','error','-protocol_whitelist','file','-threads','1'];
     if(!metadataOnly)args.push('-show_packets');
     args.push('-show_streams','-show_format','-show_program_version','-show_entries',
-      'packet=stream_index,pts_time,dts_time,duration_time,size,flags:stream=index,codec_name,codec_type,width,height,avg_frame_rate,sample_rate,channels:stream_disposition=attached_pic,default:format=duration:program_version=version',
+      (metadataOnly?'':'packet=stream_index,pts_time,dts_time,duration_time,size,flags:')+'stream=index,codec_name,codec_long_name,codec_tag_string,profile,codec_type,bit_rate,duration,width,height,avg_frame_rate,sample_rate,channels:stream_disposition=attached_pic,default:format=format_name,format_long_name,duration,bit_rate,start_time:program_version=version',
       '-of','compact=p=1',path);
     self.postMessage({type:'progress',message:metadataOnly?'Reading stream information…':'Inspecting packets on your device…'});
     // core 0.12.10's JS ffprobe() wrapper discards the C return value and
@@ -41,8 +41,8 @@ self.onmessage=async({data:{file,mode,timestamp,stream,includePartial,metadataOn
     // are checked correctly. This worker invokes it once, then is destroyed.
     const code=core._ffprobe(args.length,core.stringsToPtr(args));
     if(code!==0)throw new Error(errors.trim()||'FFprobe could not read this media. The format may not be included in this WASM build.');
-    const info=normalizeMetadata({streams,format:{duration}});
-    if(metadataOnly){self.postMessage({type:'streams',metadata:info});return;}
+    const info=normalizeMetadata({streams,format});
+    if(metadataOnly){self.postMessage({type:'streams',metadata:info,scanned_packets:seen});return;}
     const combined=stream==='combined';
     if(combined&&mode==='gop')throw new Error('Combined video + audio bitrate uses one-second intervals. Select a single video stream for GOP analysis.');
     const selectedStreams=combined?playbackStreams(info.streams):[stream==='auto'?info.streams.find(s=>s.type==='video'&&!s.attached_picture)||(info.streams.find(s=>s.type==='audio')||info.streams[0]):info.streams.find(s=>String(s.index)===stream)];
