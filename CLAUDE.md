@@ -1,6 +1,6 @@
 # Bitrate Analyser
 
-Client-only bitrate, GOP and segment analyser built on FFprobe WebAssembly. Plain JavaScript ES modules in `src/`, no framework, no bundler beyond `scripts/build.mjs`.
+Client-only bitrate, GOP and segment analyser built on FFprobe WebAssembly. Plain JavaScript ES modules in `src/`, no framework, no bundler beyond `scripts/build.mjs`. README.md's "Project layout" section describes each file; keep it up to date when adding or removing modules.
 
 ## Priorities
 
@@ -9,6 +9,7 @@ Simplicity and maintainability come first. The owner, or another developer, shou
 - Prefer the simplest solution that works. Don't add abstractions, options or dependencies for hypothetical future needs.
 - Write readable code: descriptive names, one statement per line, normal indentation and spacing. Don't compress code onto single lines.
 - Keep functions small and focused. Keep pure calculations (`analysis.js`, `segments.js`, `bandwidth.js`, `chart-intervals.js`, `progress.js`) separate from DOM code so they stay unit-testable.
+- Put helpers used by more than one page script in `ui.js` rather than copying them.
 - Comment the _why_ for non-obvious rules (timestamp handling, interval boundaries), not the _what_.
 - When touching existing dense code, leave it easier to read than you found it, without changing behaviour.
 
@@ -16,10 +17,11 @@ Simplicity and maintainability come first. The owner, or another developer, shou
 
 ```bash
 npm ci
+npm run format         # Prettier; CI fails if code is not formatted
 npm test               # unit tests (node --test)
 npm run build          # outputs dist/
 npm run test:browser   # needs native ffmpeg/ffprobe and Chromium
 npm run serve          # http://localhost:8001
 ```
 
-Run `npm test` before committing; run the browser tests for UI or worker changes. Keep README.md in sync with user-visible behaviour.
+Run `npm run format` and `npm test` before committing; run the browser tests for UI or worker changes. Keep README.md in sync with user-visible behaviour.
