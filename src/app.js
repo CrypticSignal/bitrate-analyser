@@ -82,6 +82,7 @@ function sourceChanged() {
   if(activeWorker)fail('Source changed. Start a new analysis.');
   fileMetadata=null;$('analysis-progress').hidden=true;
   populatePairing(null,true);
+  $('file-info').open=true;
   $('file-info').hidden=true;$('file-summary').replaceChildren();$('file-streams').replaceChildren();
   const file = $('file').files[0];
   $('file-name').textContent = file ? file.name : 'Drop a media file here';

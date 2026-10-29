@@ -137,7 +137,12 @@ try{
  await page.locator('.results[data-state="ready"]').waitFor({timeout:60000});
  assert.equal(await page.locator('#stream option').count(),5);
  assert.equal(await page.locator('#file-info').isVisible(),true);
- assert.ok(await page.evaluate(()=>Math.abs(document.querySelector('.chart-panel').getBoundingClientRect().top-document.querySelector('aside').getBoundingClientRect().top)<1),'Metadata must not displace the chart');
+ assert.ok(await page.evaluate(()=>document.querySelector('#file-info').getBoundingClientRect().bottom<=document.querySelector('.chart-panel').getBoundingClientRect().top),'File information sits above chart');
+ await page.locator('#file-info-title').click();
+ assert.equal(await page.locator('#file-summary').isVisible(),false);
+ assert.equal(await page.locator('#file-info-title').isVisible(),true);
+ await page.locator('#file-info-title').click();
+ assert.equal(await page.locator('#file-summary').isVisible(),true);
  const reported=JSON.parse(run('ffprobe',['-v','error','-show_format','-show_streams','-of','json',multi]));
  const summary=await page.locator('#file-summary').innerText();
  assert.ok(summary.includes(reported.format.format_name));
