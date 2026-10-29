@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,">
+<meta name="theme-color" content="#10191b"><title>Bitrate Plotter — Local WASM analysis</title><link rel="stylesheet" href="./style.css"><script src="./app.js" type="module"></script></head>
+<body>
+<header><a href="./" class="brand"><span class="brand-icon">▥</span> Bitrate Plotter <span class="badge">WASM</span></a><span class="header-note">A closer look at your media</span></header>
+<main>
+<div class="intro"><div><p class="eyebrow">MEDIA INSPECTION / 01</p><h1>See the signal.</h1><p class="subtitle">Explore bitrate variation and the structure behind every frame.</p></div><span class="native"><i></i> FFprobe · on your device</span></div>
+<div class="workspace">
+<aside><form id="analysis-form">
+<div class="panel-heading"><span class="step">01</span><h2>Source & settings</h2></div>
+<label class="dropzone" id="dropzone"><input id="file" name="file" type="file" accept="audio/*,video/*,.mkv,.ts,.m2ts,.flac,.avi" required><span class="upload-icon">↑</span><strong id="file-name">Drop a media file here</strong><span id="file-size">or click to browse</span><small>Audio or video · stays on your device</small></label>
+<label class="field">Analysis<select name="mode" id="mode"><option value="seconds">Bitrate per second</option><option value="gop">Group of Pictures (GOP)</option></select></label>
+<div class="field"><span>Timestamp</span><div class="segmented"><label><input type="radio" name="timestamp" value="pts" checked><span>PTS</span></label><label><input type="radio" name="timestamp" value="dts"><span>DTS</span></label></div><small>Presentation time or decoding time.</small></div>
+<label class="field">Stream<select name="stream" id="stream"><option value="auto">Auto · first video, otherwise audio</option></select></label>
+<label class="check"><input type="checkbox" name="include_partial" id="partial">Include partial seconds</label><p class="hint" id="partial-hint">Default: only seconds with ≥ 0.9s of timestamp coverage and a &lt; 0.1s gap to the next bucket.</p>
+<button class="primary" id="analyze" type="submit">Analyze media <span>↗</span></button>
+<button id="cancel" type="button" hidden>Cancel analysis</button>
+<p class="privacy">Your file stays on your device. Analysis runs in your browser; nothing is uploaded.</p>
+</form></aside>
+<section class="results" aria-label="Analysis results">
+<div class="result-top"><div><p class="eyebrow">THE BIG PICTURE</p><h2 id="result-title">Bitrate overview</h2></div><span class="status" id="status">Ready to analyze</span></div>
+<div id="message" role="status" aria-live="polite"></div>
+<div class="metrics"><article><span>Average bitrate</span><strong id="average">—</strong><small id="average-note">Across analyzed intervals</small></article><article><span>Peak bitrate</span><strong id="peak">—</strong><small>Maximum interval bitrate</small></article><article><span>Minimum bitrate</span><strong id="minimum">—</strong><small>Minimum interval bitrate</small></article><article><span>Duration</span><strong id="duration">—</strong><small id="stream-note">Selected media stream</small></article></div>
+<div class="chart-panel"><div class="chart-toolbar"><h3 id="chart-title">Bitrate over time</h3><div class="chart-actions"><label><input type="checkbox" id="filled"> Fill area</label><button id="export-svg" disabled>↓ SVG</button></div></div><div id="chart" class="chart"><div class="empty" id="empty"><span class="empty-wave">▂ ▅ ▃ █ ▆ ▂ ▄ ▇ ▃</span><h3>Your media, in detail.</h3><p>Choose a local file and start an analysis to reveal its bitrate profile.</p></div></div><div class="chart-caption"><span><i class="legend-dot"></i> <span id="legend">Selected stream</span></span><span id="chart-caption">Packet sizes · decimal bitrate units</span></div></div>
+<div class="details"><div><h3>Analysis details</h3><p id="detail-text">Per-second analysis for audio and video. GOP analysis for video streams.</p><dl id="details"></dl></div><div class="exports"><button id="export-json" disabled>↓ Export JSON</button><button id="export-csv" disabled>↓ Export CSV</button></div></div>
+<div id="gop-panel" hidden><h3>GOP statistics</h3><p id="gop-summary"></p><div class="table-wrap"><table><thead><tr><th>GOP</th><th>Start (s)</th><th>Duration (s)</th><th>Packets</th><th>Mbps</th></tr></thead><tbody id="gop-body"></tbody></table></div><p id="gop-note" class="hint"></p></div>
+</section></div>
+<footer><span>BITRATE PLOTTER</span><span>Built from the original Python CLI · Precision in every packet.</span></footer>
+</main></body></html>
