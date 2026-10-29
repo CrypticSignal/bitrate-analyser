@@ -95,3 +95,5 @@ See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The core package declares 
 GitHub Pages publishes `dist/` after the verification workflow passes on `main`: https://crypticsignal.github.io/bitrate-plotter-wasm/ . Repository Settings → Pages must use **GitHub Actions** as the build source.
 
 Whole-stream average includes all valid selected packet bytes, divided by the selected timestamp timeline (latest packet end minus earliest timestamp). Chart average uses only displayed intervals. Unknown packet end durations remain conservative; zero elapsed duration makes the whole-stream average unavailable. The duration metric uses this selected packet timeline rather than the container’s duration.
+
+Combined mode offers video and audio track selectors. Each defaults to the marked default track (otherwise first of its type); choose explicit indices or No audio. JSON records both the requested pairing and the actual selected tracks.

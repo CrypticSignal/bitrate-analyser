@@ -138,3 +138,12 @@ test('whole-stream average includes partial bytes independently of chart interva
  }
  assert.equal(analyze([{time:0,size:1}],{includePartial:true}).overall_bitrate_mbps,null);
 });
+
+
+test('combined selection supports explicit tracks, no audio, and rejects invalid tracks',()=>{
+ const streams=[{index:0,type:'video'},{index:1,type:'audio'}, {index:2,type:'audio',default:true},{index:3,type:'video',attached_picture:true}];
+ assert.deepEqual(playbackStreams(streams,{video:'0',audio:'1'}).map(s=>s.index),[0,1]);
+ assert.deepEqual(playbackStreams(streams,{audio:'none'}).map(s=>s.index),[0]);
+ assert.throws(()=>playbackStreams(streams,{audio:'9'}),/not available/);
+ assert.throws(()=>playbackStreams(streams,{video:'3'}),/not available/);
+});

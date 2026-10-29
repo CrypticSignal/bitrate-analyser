@@ -88,12 +88,16 @@ export function parsePacket(line,timestamp,fps=0){
 }
 
 /** Choose one playable video and audio track; player language preferences may differ. */
-export function playbackStreams(streams){
-  const choose=type=>{
+export function playbackStreams(streams,{video:videoChoice='default',audio:audioChoice='default'}={}){
+  const choose=(type,choice)=>{
     const candidates=streams.filter(s=>s.type===type&&!s.attached_picture);
-    return candidates.find(s=>s.default)||candidates[0];
+    if(type==='audio'&&choice==='none')return undefined;
+    if(choice==='default')return candidates.find(s=>s.default)||candidates[0];
+    const track=candidates.find(s=>String(s.index)===String(choice));
+    if(!track)throw new Error(`Selected ${type} track is not available.`);
+    return track;
   };
-  const video=choose('video');
+  const video=choose('video',videoChoice);
   if(!video)throw new Error('Combined bitrate requires a video stream. Select an audio stream instead.');
-  return [video,choose('audio')].filter(Boolean);
+  return [video,choose('audio',audioChoice)].filter(Boolean);
 }

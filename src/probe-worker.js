@@ -2,7 +2,7 @@ import createFFmpegCore from './vendor/ffmpeg-core.js';
 import {analyze,normalizeMetadata,parsePacket,playbackStreams} from './analysis.js';
 const MAX_PACKETS=2_000_000;
 // WORKERFS reads slices of the read-only browser File; no input MEMFS copy.
-self.onmessage=async({data:{file,mode,timestamp,stream,includePartial,metadataOnly=false}})=>{
+self.onmessage=async({data:{file,mode,timestamp,stream,includePartial,pairing={},metadataOnly=false}})=>{
   let core,mounted=false;
   try{
     if(!file?.size)throw new Error('Choose a nonempty media file.');
@@ -45,7 +45,7 @@ self.onmessage=async({data:{file,mode,timestamp,stream,includePartial,metadataOn
     if(metadataOnly){self.postMessage({type:'streams',metadata:info,scanned_packets:seen});return;}
     const combined=stream==='combined';
     if(combined&&mode==='gop')throw new Error('Combined video + audio bitrate uses one-second intervals. Select a single video stream for GOP analysis.');
-    const selectedStreams=combined?playbackStreams(info.streams):[stream==='auto'?info.streams.find(s=>s.type==='video'&&!s.attached_picture)||(info.streams.find(s=>s.type==='audio')||info.streams[0]):info.streams.find(s=>String(s.index)===stream)];
+    const selectedStreams=combined?playbackStreams(info.streams,pairing):[stream==='auto'?info.streams.find(s=>s.type==='video'&&!s.attached_picture)||(info.streams.find(s=>s.type==='audio')||info.streams[0]):info.streams.find(s=>String(s.index)===stream)];
     if(!selectedStreams[0])throw new Error('Stream index not found in this file.');
     const selected=combined?{index:'combined',type:'combined',codec:selectedStreams.map(s=>s.codec).join(' + '),fps:0}:selectedStreams[0];
     self.postMessage({type:'metadata',metadata:info,stream:selected});
@@ -58,7 +58,7 @@ self.onmessage=async({data:{file,mode,timestamp,stream,includePartial,metadataOn
       }
     }
     const result=analyze(packets,{mode,includePartial,video:selected.type==='video'});
-    result.selected_streams=selectedStreams;result.selection=stream;
+    result.selected_streams=selectedStreams;result.selection=stream;result.pairing=combined?pairing:null;
     result.filename=file.name;result.file_bytes=file.size;result.timestamp=timestamp.toUpperCase();
     result.engine={core:'@ffmpeg/core@0.12.10',ffprobe:version};result.metadata=info;result.stream=selected;result.rejected_packets=selectedStreams.reduce((sum,s)=>sum+(rejectedByStream.get(s.index)||0),0);
     self.postMessage({type:'result',result});

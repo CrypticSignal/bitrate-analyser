@@ -95,6 +95,12 @@ try{
  await page.setViewportSize({width:1440,height:1000});
 
  assert.equal(await page.locator('#stream').inputValue(),'auto');
+ await page.locator('#stream').selectOption('combined');
+ assert.equal(await page.locator('#pairing').isVisible(),true);
+ await page.locator('#audio-track').selectOption('1');
+ await page.locator('#analyze').click();await page.getByText('Analysis complete',{exact:true}).waitFor({timeout:60000});
+ assert.match(await page.locator('#stream-note').innerText(),/#0.*video.*#1.*audio/);
+ assert.equal(await page.locator('#audio-track').inputValue(),'1');
  await page.locator('#stream').selectOption('2');
  await page.locator('#analyze').click();await page.getByText('Analysis complete',{exact:true}).waitFor({timeout:60000});
  assert.match(await page.locator('#stream-note').innerText(),/#2.*audio/);

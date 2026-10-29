@@ -9,12 +9,22 @@ function streamOptions(metadata){
 }
 function updateMode(){
   const combined=$('stream').value==='combined';
+  $('pairing').hidden=!combined;
   $('mode').querySelector('[value=gop]').disabled=combined;
   if(combined)$('mode').value='seconds';
   $('partial').disabled=$('mode').value==='gop';
   $('partial-hint').textContent=$('mode').value==='gop'?'GOP boundaries are determined by keyframe packet timestamps.':'Bitrate = packet bits in each fixed 1-second interval ÷ 1 second. By default, only full intervals within the stream’s packet timeline are included.';
 }
 $('stream').addEventListener('change',updateMode);
+function populatePairing(metadata,reset=false){
+  for(const type of ['video','audio']){
+    const select=$(type+'-track'),previous=reset?'default':select.value;
+    select.replaceChildren(new Option(`Default / first ${type}`,'default'),
+      ...(metadata?.streams||[]).filter(s=>s.type===type&&!s.attached_picture).map(s=>new Option(`#${s.index} · ${s.codec}`,String(s.index))),
+      ...(type==='audio'?[new Option('No audio','none')]:[]));
+    select.value=[...select.options].some(o=>o.value===previous)?previous:'default';
+  }
+}
 function showFileInfo(metadata,file){
   const unavailable='Not reported';
   const rate=value=>value>0?`${fmt(value/1000)} kbps`:unavailable;
@@ -43,6 +53,7 @@ function showFileInfo(metadata,file){
 }
 function sourceChanged() {
   if(activeWorker)fail('Source changed. Start a new analysis.');
+  populatePairing(null,true);
   $('file-info').hidden=true;$('file-summary').replaceChildren();$('file-streams').replaceChildren();
   const file = $('file').files[0];
   $('file-name').textContent = file ? file.name : 'Drop a media file here';
@@ -60,7 +71,7 @@ function sourceChanged() {
       if(activeWorker!==worker)return;
       if(data.type==='progress')$('message').textContent=data.message;
       else if(data.type==='streams'){
-        showFileInfo(data.metadata,file);
+        showFileInfo(data.metadata,file);populatePairing(data.metadata,true);
         $('stream').replaceChildren(...streamOptions(data.metadata));
         $('stream').value='auto';updateMode();finish();
         $('status').textContent='Streams ready';$('message').textContent='Choose a stream, then analyze the media.';
@@ -109,6 +120,7 @@ $('analysis-form').addEventListener('submit', event => {
       if(activeWorker!==worker)return;
       if(data.type==='progress')$('message').textContent=data.message;
       else if(data.type==='metadata'){
+        populatePairing(data.metadata);
         $('stream').replaceChildren(...streamOptions(data.metadata));
         $('stream').value=selection;
         updateMode();
@@ -116,7 +128,7 @@ $('analysis-form').addEventListener('submit', event => {
       else if(data.type==='error')fail(data.message);
     };
     activeWorker.onerror=()=>{if(activeWorker===worker)fail('The browser could not run FFprobe. Check that the WASM assets are served correctly, or try a smaller file or another browser.');};
-    activeWorker.postMessage({file,mode:$('mode').value,timestamp:document.querySelector('[name=timestamp]:checked').value,stream:$('stream').value,includePartial:$('partial').checked});
+    activeWorker.postMessage({file,mode:$('mode').value,timestamp:document.querySelector('[name=timestamp]:checked').value,stream:$('stream').value,includePartial:$('partial').checked,pairing:{video:$('video-track').value,audio:$('audio-track').value}});
     activeTimer=setTimeout(()=>fail('Analysis exceeded five minutes. Try a shorter clip or a faster device.'),300000);
   }catch(error){fail(error.message);}
 });
