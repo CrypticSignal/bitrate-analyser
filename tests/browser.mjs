@@ -191,6 +191,15 @@ try{
  assert.equal(await page.locator('#whole-average').innerText(),selectedAverage);
  await page.locator('#compare').uncheck();
  assert.equal(await page.locator('#chart path[data-series]').count(),1);
+ assert.match(await page.locator('#chart path[data-series]').getAttribute('d'),/H.*V.*H/);
+ // Late in the 1–2 second interval, hover must not jump to the 2–3 bucket.
+ await page.evaluate(()=>{
+  const svg=document.querySelector('#chart svg'),width=svg.viewBox.baseVal.width;
+  const client=new DOMPoint(55+(1.9/3)*(width-15-55),150).matrixTransform(svg.getScreenCTM());
+  svg.dispatchEvent(new PointerEvent('pointermove',{clientX:client.x,clientY:client.y,bubbles:true}));
+ });
+ assert.equal(await page.locator('#tooltip-range').textContent(),'1–2 s');
+ assert.equal(await page.locator('#interval-highlight').getAttribute('visibility'),'visible');
 
  for(const id of ['peak-note','minimum-note'])assert.match(await page.locator('#'+id).innerText(),/\d+(?:\.\d{3})?–\d+(?:\.\d{3})? s/);
  const rangeEntry=page.locator('#details dt').filter({hasText:'Analysis range'});

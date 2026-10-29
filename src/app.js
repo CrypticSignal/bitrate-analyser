@@ -1,4 +1,5 @@
 'use strict';
+import {intervalBounds,intervalAtTime,stepPath} from './chart-intervals.js';
 const $ = id => document.getElementById(id);
 let result = null;
 let fileMetadata=null;
@@ -225,12 +226,12 @@ function drawChart() {
   const comparisonTracks=(r.comparison_data||r).selected_streams||[];
   $('compare-note').textContent=compare?`Comparing ${comparisonTracks.map(s=>`#${s.index} ${s.type} (${s.codec})`).join(' + ')}. Cards and analysis details describe the selected stream(s); the overlay uses the combined timeline.`:
     $('compare').disabled?(r.mode==='gop'?'Comparison requires per-second analysis.':r.comparison_unavailable||'Comparison requires both a video and an audio track.'):'Compare the selected track with its default video/audio counterpart; no additional scan is needed.';
-  const width = Math.max(320, $('chart').clientWidth - 16), height = 350, left = 55, right = width - 15, top = 22, bottom = 300;
-  const start = points[0].time, end = Math.max(start + 1, points.at(-1).time + points.at(-1).duration);
+  const width = Math.max(320, $('chart').clientWidth - 16), height = 350, left = 55, right = width - 15, top = 45, bottom = 300;
+  const start=intervalBounds(points[0],chartData).start,end=Math.max(start+1e-6,intervalBounds(points.at(-1),chartData).end);
   const max = Math.max(...[chartData.bitrate_mbps.max * scale * 1.12, 0.001]);
   const x = t => left + (t-start)/(end-start)*(right-left), y = b => bottom-b*scale/max*(bottom-top);
   $('comparison-key').hidden=!compare;
-  $('chart-caption').textContent=`${r.timestamp} timestamps · ${points.length.toLocaleString()} intervals${compare?' · combined comparison timeline':''}`;
+  $('chart-caption').textContent=`${r.timestamp} timestamps · ${points.length.toLocaleString()} intervals · each step spans its timestamp range${r.include_partial?' · partial-second rates still use a 1 s divisor':''}${compare?' · combined comparison timeline':''}`;
   const series=compare?[{key:'bitrate_mbps',id:'combined',label:'Combined',color:'#baf28a'},
     {key:'video_bitrate_mbps',id:'video',label:'Video',color:'#7dcfff'},
     {key:'audio_bitrate_mbps',id:'audio',label:'Audio',color:'#f6b970'}]:[{key:'bitrate_mbps',id:'selected',label:'Selected stream',color:'#baf28a'}];
@@ -251,24 +252,28 @@ function drawChart() {
     const t=start+(end-start)*i/4, xx=x(t);
     grid += `<text x="${xx}" y="${bottom+26}" text-anchor="middle">${fmt(t,1)}s</text>`;
   }
-  const makePath=line=>line.sampled.map((p,i)=>`${i?'L':'M'}${x(p.time).toFixed(2)},${y(p[line.key]).toFixed(2)}`).join(' ');
+  const makePath=line=>stepPath(line.sampled,line.key,chartData,t=>x(t).toFixed(2),rate=>y(rate).toFixed(2));
   const primary=lines[0],path=makePath(primary),sampled=primary.sampled;
-  const fill=$('filled').checked?`<path d="${path} L${x(sampled.at(-1).time)},${bottom} L${x(sampled[0].time)},${bottom} Z" fill="#baf28a" opacity=".12"/>`:'';
+  const fill=$('filled').checked?sampled.map(p=>{
+    const {start,end}=intervalBounds(p,chartData);
+    return `<path d="M${x(start)},${bottom} V${y(p[primary.key])} H${x(end)} V${bottom} Z" fill="#baf28a" opacity=".12"/>`;
+  }).join(''):'';
   const paths=lines.map(line=>`<path data-series="${line.id}" d="${makePath(line)}" fill="none" stroke="${line.color}" stroke-width="2" stroke-linejoin="round"><title>${line.label}</title></path>`).join('');
   const unit=scale===1?'Mbps':'kbps';
   $('legend').textContent=compare?'Video + audio comparison · Mbps':`${r.stream.type==='combined'?'Video + audio':r.stream.type} · ${unit}`;
-  $('chart').innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${compare?'Video, audio and combined bitrate':'Bitrate'} over time in ${unit}"><rect width="${width}" height="350" fill="#142022"/><g font-family="system-ui,sans-serif" font-size="12" fill="#91a69c">${grid}<text x="${left}" y="13">${unit}</text></g>${fill}${paths}<line id="cursor" x1="0" x2="0" y1="${top}" y2="${bottom}" stroke="#799b75" visibility="hidden"/><text id="tooltip" x="${right}" y="14" text-anchor="end" fill="#dbeecf" font-family="system-ui" font-size="10"></text></svg>`;
+  $('chart').innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${compare?'Video, audio and combined bitrate':'Bitrate'} over time in ${unit}"><rect width="${width}" height="350" fill="#142022"/><g font-family="system-ui,sans-serif" font-size="12" fill="#91a69c">${grid}<text x="${left}" y="13">${unit}</text></g><rect id="interval-highlight" y="${top}" height="${bottom-top}" fill="#baf28a" opacity=".10" visibility="hidden"/>${fill}${paths}<line id="cursor" x1="0" x2="0" y1="${top}" y2="${bottom}" stroke="#799b75" visibility="hidden"/><text id="tooltip" x="${right}" y="14" text-anchor="end" fill="#dbeecf" font-family="system-ui" font-size="10"><tspan id="tooltip-range" x="${right}" y="14"></tspan><tspan id="tooltip-rates" x="${right}" y="29"></tspan></text></svg>`;
   const svg = $('chart').querySelector('svg');
   svg.addEventListener('pointermove', event => {
     const point = new DOMPoint(event.clientX,event.clientY).matrixTransform(svg.getScreenCTM().inverse());
     const time = start+(point.x-left)/(right-left)*(end-start);
-    let lo=0, hi=points.length-1;
-    while(lo<hi){const mid=Math.floor((lo+hi)/2);if(points[mid].time<time)lo=mid+1;else hi=mid;}
-    const p = lo>0 && Math.abs(points[lo-1].time-time)<Math.abs(points[lo].time-time) ? points[lo-1] : points[lo];
-    const cursor = svg.querySelector('#cursor'); cursor.setAttribute('x1',x(p.time)); cursor.setAttribute('x2',x(p.time)); cursor.setAttribute('visibility','visible');
-    svg.querySelector('#tooltip').textContent = compare?`${fmt(p.time,3)}s · V ${fmt(p.video_bitrate_mbps,3)} · A ${fmt(p.audio_bitrate_mbps,3)} · Σ ${fmt(p.bitrate_mbps,3)} Mbps`:`${fmt(p.time,3)}s · ${fmt(p.bitrate_mbps*scale,3)} ${unit}`;
+    const p=intervalAtTime(points,time),bounds=intervalBounds(p,chartData);
+    const highlight=svg.querySelector('#interval-highlight');
+    highlight.setAttribute('x',x(bounds.start));highlight.setAttribute('width',Math.max(0,x(bounds.end)-x(bounds.start)));highlight.setAttribute('visibility','visible');
+    const cursor = svg.querySelector('#cursor'); cursor.setAttribute('x1',x(bounds.start)); cursor.setAttribute('x2',x(bounds.start)); cursor.setAttribute('visibility','visible');
+    svg.querySelector('#tooltip-range').textContent=`${fmt(bounds.start,3)}–${fmt(bounds.end,3)} s${p.complete===false?' (partial second)':''}`;
+    svg.querySelector('#tooltip-rates').textContent=compare?`V ${fmt(p.video_bitrate_mbps,3)} · A ${fmt(p.audio_bitrate_mbps,3)} · Σ ${fmt(p.bitrate_mbps,3)} Mbps`:`${fmt(p.bitrate_mbps*scale,3)} ${unit}`;
   });
-  svg.addEventListener('pointerleave', () => {svg.querySelector('#cursor').setAttribute('visibility','hidden');svg.querySelector('#tooltip').textContent='';});
+  svg.addEventListener('pointerleave', () => {svg.querySelector('#cursor').setAttribute('visibility','hidden');svg.querySelector('#tooltip-range').textContent='';svg.querySelector('#tooltip-rates').textContent='';svg.querySelector('#interval-highlight').setAttribute('visibility','hidden');});
 }
 $('filled').addEventListener('change', drawChart);
 $('compare').addEventListener('change',drawChart);
