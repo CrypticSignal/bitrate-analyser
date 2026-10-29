@@ -113,8 +113,8 @@ try{
  assert.equal(await page.locator('#stream option').count(),4);
  assert.equal(await page.locator('#stream').inputValue(),'auto');
  assert.equal(await page.locator('[name=timestamp]:checked').inputValue(),'dts');
- for(const id of ['average','peak','minimum','duration'])assert.match(await page.locator('#'+id).innerText(),/\d+\.\d{3}(?:Mbps|kbps|sec)$/);
- assert.match(await page.locator('#message').innerText(),/excluded from the chart and statistics: -0\.080-0\.000 s, 3\.000-3\.120 s\./);
+ for(const id of ['average','peak','minimum','duration'])assert.match(await page.locator('#'+id).innerText(),/\d+(?:\.\d{3})?(?:Mbps|kbps|sec)$/);
+ assert.match(await page.locator('#message').innerText(),/excluded from the chart and statistics: -0\.080-0 s, 3-3\.120 s\./);
  await page.locator('#stream').selectOption('combined');
  assert.equal(await page.locator('#mode option[value=gop]').evaluate(option=>option.disabled),true);
  await page.locator('#analyze').click();await page.getByText('Analysis complete',{exact:true}).waitFor({timeout:60000});

@@ -1,7 +1,7 @@
 'use strict';
 const $ = id => document.getElementById(id);
 let result = null;
-const fmt = (value, digits = 2) => Number(value).toLocaleString(undefined, {maximumFractionDigits: digits, minimumFractionDigits: digits});
+const fmt = (value, digits = 2) => Number(value).toLocaleString(undefined, {maximumFractionDigits: digits, minimumFractionDigits: Number.isInteger(Number(Number(value).toFixed(digits))) ? 0 : digits});
 function streamOptions(metadata){
   return [new Option('Auto · first video, otherwise audio','auto'),
     ...(!metadata||metadata.streams.some(s=>s.type==='video'&&!s.attached_picture)?[new Option('Combined · default video + audio','combined')]:[]),
@@ -145,7 +145,7 @@ function render() {
   $('stream').value = selected;
   updateMode();
   $('message').className = '';
-  const timestamp=value=>value.toFixed(3);
+  const timestamp=value=>value.toFixed(3).replace(/\.000$/, '').replace(/^-0$/, '0');
   const partialRanges=r.partial_seconds.map(second=>`${timestamp(Math.max(second,r.first_timestamp))}-${timestamp(Math.min(second+1,r.end_timestamp))} s`).join(', ');
   $('message').textContent = r.mode === 'seconds' && r.partial_seconds.length ? `${r.partial_seconds.length} partial start/end interval${r.partial_seconds.length===1?'':'s'} ${r.include_partial ? 'included as raw bits per one-second bucket' : 'excluded from the chart and statistics'}: ${partialRanges}.${r.include_partial?' Edge buckets may be lower.':''}` : '';
   $('chart-caption').textContent = `${r.timestamp} timestamps · ${r.points.length.toLocaleString()} intervals`;
