@@ -18,17 +18,19 @@ Open http://localhost:8001. Any static HTTP(S) server can serve `dist/`; opening
 
 ## Analyze media
 
-Selecting a file loads container and audio/video track information before analysis. Reported codecs, bitrates, durations, and other properties are separate from calculated packet rates; missing metadata displays as **Not reported**.
+Selecting a file loads container and audio/video track information before analysis, with Auto selected. Reported codecs, bitrates, durations, and other properties are separate from calculated packet rates; missing metadata displays as **Not reported**.
 
 - **Auto:** first non-cover-art video stream, otherwise first audio stream.
 - **Individual stream:** select any listed audio/video track.
 - **Combined:** choose one video and one audio track, or no audio. Defaults prefer tracks marked as default, then the first of each type; player language preferences may differ.
 - **Timestamps:** DTS by default; PTS is optional. Negative timestamps are supported.
-- **Comparison:** after per-second analysis of a file with video and audio, overlay video, audio, and total bitrate without rescanning. An individual selection is paired with its default counterpart; Combined mode uses your chosen pair. Cards still describe the selected analysis; comparison uses a shared combined timeline.
+- **Comparison:** after per-second analysis of a file with video and audio, overlay video, audio, and total bitrate without rescanning. An individual selection is paired with its default counterpart; Combined mode uses your chosen pair. Cards still describe the selected analysis; comparison uses a shared combined timeline. The checkbox is unavailable for GOP analysis or when both track types are not available.
+
+Successful analysis scrolls to the graph; the four bitrate cards and Analysis details follow it. Mobile uses an immediate scroll, while desktop uses smooth scrolling unless reduced motion is preferred.
 
 Progress shows engine loading, stream discovery, packet scanning, and calculation stages. Scan percentages estimate timestamp coverage using the metadata probe; missing duration gives an indeterminate bar with packet counts. Updates are throttled, require no extra scan, and reach 100% only after successful analysis.
 
-Charts support hover values and filled areas. JSON retains the selected analysis and available comparison data; CSV follows the displayed chart, including comparison components; SVG exports the displayed chart. GOP tables show up to 500 rows. Rates use decimal Mbps in exports, with kbps displayed for audio. Displayed values use three decimal places, omitting decimals for whole numbers.
+Charts support hover values and filled areas. JSON retains the selected analysis and available comparison data; CSV follows the displayed chart, including comparison components; SVG exports the displayed chart. GOP tables show up to 500 rows. Rates use decimal Mbps in exports, with kbps displayed for individual audio analysis and Mbps for comparison overlays. Displayed values use three decimal places, omitting decimals for whole numbers.
 
 ### Calculation rules
 
@@ -41,13 +43,15 @@ Charts support hover values and filled areas. JSON retains the selected analysis
 
 The packet timeline runs from the earliest selected timestamp to the latest packet end. Missing video durations fall back to average frame rate; other unknown durations count as zero. A zero-length timeline has no whole-stream average.
 
+**Analysis details** distinguishes the observed packet timestamp range from the **Analysis range** included in chart statistics. For example, excluding partial seconds can reduce an observed `-0.067–201.265 s` range to `0–201 s`. With partial seconds included, the range uses actual packet timeline bounds, including packet durations. Whole-stream average always uses the full selected packet timeline.
+
 Only full one-second intervals are included by default; excluded partial ranges are listed. **Include partial seconds** retains edge buckets but still divides their bits by one second. Empty full intervals contribute zero. Bytes are assigned by timestamp, not spread across packet duration.
 
 GOP analysis requires an individual video stream. Keyframes define boundaries in the selected timestamp order; packets before the first keyframe are excluded. The final GOP ends at its latest packet end. These are packet-based groups, not decoded frame dependencies; PTS and DTS can produce different boundaries.
 
 ## Analyze HLS / DASH segments
 
-Select a local package folder, or a manifest and its segment files together. Folder selection preserves nested paths. This reads manifest text and file sizes only—no WASM, packet scan, or remote downloads.
+Expand **HLS / DASH segment analysis** (collapsed by default), then select a local package folder or a manifest and its segment files together. Folder selection preserves nested paths. This reads manifest text and file sizes only—no WASM, packet scan, or remote downloads.
 
 | Format | Supported |
 | --- | --- |
@@ -60,7 +64,7 @@ Segment bitrate is packaged file/range bits ÷ declared playback duration. The a
 
 ## Estimate bandwidth
 
-Choose a media peak/whole-stream average or a segment peak/average, then adjust overhead and headroom:
+Expand **Bandwidth planning estimate** (collapsed by default). Choose a media peak/whole-stream average or a segment peak/average, then adjust overhead and headroom:
 
 ```text
 Estimated Mbps = measured Mbps × (1 + overhead / 100) × (1 + headroom / 100)
