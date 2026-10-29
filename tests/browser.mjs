@@ -194,6 +194,9 @@ try{
  for(const extension of ['json','csv','svg']){const pending=page.waitForEvent('download');await page.locator('#export-'+extension).click();const d=await pending;assert.ok(d.suggestedFilename().endsWith('.'+extension));}
  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
  if(process.env.SCREENSHOT_PATH)await page.screenshot({path:process.env.SCREENSHOT_PATH,fullPage:true});
+ await page.emulateMedia({reducedMotion:'reduce'});
+ await page.locator('#analyze').click();await page.getByText('Analysis complete',{exact:true}).waitFor({timeout:60000});
+ await page.waitForFunction(()=>{const rect=document.querySelector('.chart-panel').getBoundingClientRect();return rect.top>=-1&&rect.top<50;});
  await page.locator('#analyze').click();await page.locator('#cancel').click();assert.equal(await page.locator('#analyze').isEnabled(),true);
  assert.deepEqual(pageErrors,[]);assert.ok(requests.every(r=>r.method==='GET'&&r.url.startsWith(origin+'/')),'No uploads or external requests');
  console.log('Browser UI, cancellation, exports, mobile layout, and no-upload checks passed.');

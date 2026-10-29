@@ -124,7 +124,12 @@ $('analysis-form').addEventListener('submit', event => {
         $('stream').replaceChildren(...streamOptions(data.metadata));
         $('stream').value=selection;
         updateMode();
-      }else if(data.type==='result'){result=data.result;render();finish();}
+      }else if(data.type==='result'){
+        result=data.result;render();finish();
+        document.querySelector('.chart-panel').scrollIntoView({
+          behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'
+        });
+      }
       else if(data.type==='error')fail(data.message);
     };
     activeWorker.onerror=()=>{if(activeWorker===worker)fail('The browser could not run FFprobe. Check that the WASM assets are served correctly, or try a smaller file or another browser.');};
