@@ -37,13 +37,13 @@ Charts show independent horizontal segments spanning each bitrate interval, with
 | Result | Calculation |
 | --- | --- |
 | One-second bitrate | Packet bytes × 8 ÷ 1 second, assigned using `floor(timestamp)` |
-| Whole-stream average | All valid selected packet bits ÷ full selected packet timeline |
+| Overall average | All valid selected packet bits ÷ full selected packet timeline |
 | Chart average | Mean of displayed one-second rates, or duration-weighted GOP rates |
 | GOP bitrate | GOP packet bits ÷ GOP duration |
 
-The packet timeline runs from the earliest selected timestamp to the latest packet end. Missing video durations fall back to average frame rate; other unknown durations count as zero. A zero-length timeline has no whole-stream average.
+The packet timeline runs from the earliest selected timestamp to the latest packet end. Missing video durations fall back to average frame rate; other unknown durations count as zero. A zero-length timeline has no overall average.
 
-**Analysis details** distinguishes the observed packet timestamp range from the **Analysis range** included in chart statistics. For example, excluding partial seconds can reduce an observed `-0.067–201.265 s` range to `0–201 s`. With partial seconds included, the range uses actual packet timeline bounds, including packet durations. Whole-stream average always uses the full selected packet timeline.
+**Analysis details** distinguishes the observed packet timestamp range from the **Analysis range** included in chart statistics. For example, excluding partial seconds can reduce an observed `-0.067–201.265 s` range to `0–201 s`. With partial seconds included, the range uses actual packet timeline bounds, including packet durations. Overall average always uses the full selected packet timeline.
 
 Only full one-second intervals are included by default; excluded partial ranges are listed. **Include partial seconds** retains edge buckets but still divides their bits by one second. Empty full intervals contribute zero. Bytes are assigned by timestamp, not spread across packet duration.
 
@@ -64,7 +64,7 @@ Segment bitrate is packaged file/range bits ÷ declared playback duration. The a
 
 ## Estimate bandwidth
 
-Expand **Bandwidth planning estimate** (collapsed by default). Choose a media peak/whole-stream average or a segment peak/average, then adjust overhead and headroom:
+Expand **Bandwidth planning estimate** (collapsed by default). Choose a media peak/overall average or a segment peak/average, then adjust overhead and headroom:
 
 ```text
 Estimated Mbps = measured Mbps × (1 + overhead / 100) × (1 + headroom / 100)

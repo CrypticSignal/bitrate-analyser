@@ -21,7 +21,7 @@ function update(entries,preferred){
 }
 window.addEventListener('bitrate-result',({detail:r})=>update([
   ['media-peak','Selected media: peak displayed interval',r.bitrate_mbps.max],
-  ['media-average','Selected media: whole-stream average',r.overall_bitrate_mbps]
+  ['media-average','Selected media: overall average',r.overall_bitrate_mbps]
 ],'media-peak'));
 window.addEventListener('segment-result',({detail:r})=>update([
   ['segment-peak','Local segments: peak segment',r.peak_mbps],
