@@ -34,6 +34,7 @@ try{
  const page=await browser.newPage({viewport:{width:1440,height:1000}});
  page.on('request',r=>requests.push({url:r.url(),method:r.method()}));page.on('pageerror',e=>pageErrors.push(e.message));
  await page.goto(origin);
+ assert.ok(await page.evaluate(()=>Math.abs(document.querySelector('.chart-panel').getBoundingClientRect().top-document.querySelector('aside').getBoundingClientRect().top)<1),'Chart aligns with source panel');
  async function wasm(path,options={}){
   const bytes=await readFile(path);
   return page.evaluate(async({bytes,name,options})=>new Promise((resolve,reject)=>{
@@ -136,6 +137,7 @@ try{
  await page.locator('.results[data-state="ready"]').waitFor({timeout:60000});
  assert.equal(await page.locator('#stream option').count(),5);
  assert.equal(await page.locator('#file-info').isVisible(),true);
+ assert.ok(await page.evaluate(()=>Math.abs(document.querySelector('.chart-panel').getBoundingClientRect().top-document.querySelector('aside').getBoundingClientRect().top)<1),'Metadata must not displace the chart');
  const reported=JSON.parse(run('ffprobe',['-v','error','-show_format','-show_streams','-of','json',multi]));
  const summary=await page.locator('#file-summary').innerText();
  assert.ok(summary.includes(reported.format.format_name));
