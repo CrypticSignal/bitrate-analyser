@@ -2,7 +2,7 @@
 
 Client-side bitrate, GOP, and streaming bandwidth analysis using FFprobe WebAssembly. Media stays on your device; there are no uploads, API backend, or external asset requests.
 
-**[Open the app](https://crypticsignal.github.io/bitrate-plotter-wasm/)** · Based on [Bitrate Plotter](https://github.com/CrypticSignal/bitrate-plotter).
+**[Open the app](https://crypticsignal.github.io/bitrate-analyser/)** · Based on [Bitrate Plotter](https://github.com/CrypticSignal/bitrate-plotter).
 
 ## Run locally
 
