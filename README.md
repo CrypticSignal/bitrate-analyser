@@ -85,6 +85,31 @@ npm run test:browser
 
 To use an installed browser, set `TEST_BROWSER_EXECUTABLE=/usr/bin/chromium`. Tests cover calculation rules, real WASM/native comparisons, local manifests, bandwidth estimates, stream selection, overlays, exports, cancellation, mobile layout, and same-origin-only requests. PCM packet counts can differ between FFprobe versions.
 
+## Project layout
+
+Plain JavaScript modules in `src/`, with no framework. `npm run build` copies them to `dist/` along with the FFmpeg WebAssembly core.
+
+| File                 | Purpose                                                                     |
+| -------------------- | --------------------------------------------------------------------------- |
+| `index.html`         | Page markup                                                                 |
+| `style.css`          | Styles, grouped by page area                                                |
+| `app.js`             | Main page: file and stream selection, running the worker, showing results   |
+| `chart.js`           | Bitrate chart (SVG) and its tooltip                                         |
+| `file-info.js`       | File information panel                                                      |
+| `segment-ui.js`      | HLS / DASH segment panel                                                    |
+| `bandwidth-ui.js`    | Bandwidth estimate panel                                                    |
+| `ui.js`              | Small helpers shared by the page scripts                                    |
+| `probe-worker.js`    | Web worker that runs FFprobe WebAssembly on the selected file               |
+| `analysis.js`        | Pure calculations: per-second and GOP bitrates, metadata and packet parsing |
+| `segments.js`        | Pure calculations: HLS / DASH manifest parsing and segment bitrates         |
+| `chart-intervals.js` | Pure calculations: interval bounds and chart paths                          |
+| `progress.js`        | Pure calculations: scan progress estimate                                   |
+| `bandwidth.js`       | Pure calculations: bandwidth estimate                                       |
+
+The pure modules have no DOM access and are unit tested in `tests/*.test.mjs`. `tests/browser.mjs` drives the built app in Chromium and compares results with native FFprobe.
+
+Code is formatted with Prettier: run `npm run format` before committing (CI runs `npm run format:check`).
+
 ## Deployment and limits
 
 Pushes to `main` run verification, then deploy `dist/` to GitHub Pages. Repository Settings → Pages must use **GitHub Actions**. Other static hosts must serve JavaScript and `application/wasm` with same-origin workers/assets. COOP/COEP headers are unnecessary; the WASM asset is about 31 MiB.
