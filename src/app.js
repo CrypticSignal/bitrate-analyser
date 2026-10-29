@@ -20,7 +20,7 @@ $('file').addEventListener('change', sourceChanged);
 }));
 $('mode').addEventListener('change', () => {
   $('partial').disabled = $('mode').value === 'gop';
-  $('partial-hint').textContent = $('mode').value === 'gop' ? 'GOP boundaries are determined by keyframe packet timestamps.' : 'Default: only seconds with ≥ 0.9s of timestamp coverage and a < 0.1s gap to the next bucket.';
+  $('partial-hint').textContent = $('mode').value === 'gop' ? 'GOP boundaries are determined by keyframe packet timestamps.' : 'Bitrate uses fixed 1-second intervals: packet bits ÷ 1 second. By default, a packet-coverage filter excludes sparse and edge intervals.';
 });
 let activeWorker = null;
 let activeTimer = null;

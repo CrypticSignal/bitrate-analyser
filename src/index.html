@@ -13,7 +13,7 @@
 <label class="field">Analysis<select name="mode" id="mode"><option value="seconds">Bitrate per second</option><option value="gop">Group of Pictures (GOP)</option></select></label>
 <div class="field"><span>Timestamp</span><div class="segmented"><label><input type="radio" name="timestamp" value="pts" checked><span>PTS</span></label><label><input type="radio" name="timestamp" value="dts"><span>DTS</span></label></div><small>Presentation time or decoding time.</small></div>
 <label class="field">Stream<select name="stream" id="stream"><option value="auto">Auto · first video, otherwise audio</option></select></label>
-<label class="check"><input type="checkbox" name="include_partial" id="partial">Include partial seconds</label><p class="hint" id="partial-hint">Default: only seconds with ≥ 0.9s of timestamp coverage and a &lt; 0.1s gap to the next bucket.</p>
+<label class="check"><input type="checkbox" name="include_partial" id="partial">Include partial seconds</label><p class="hint" id="partial-hint">Bitrate uses fixed 1-second intervals: packet bits ÷ 1 second. By default, a packet-coverage filter excludes sparse and edge intervals.</p><p class="hint">Including partial seconds keeps those intervals too. They are still divided by 1 second, so edge intervals may show lower values.</p>
 <button class="primary" id="analyze" type="submit">Analyze media <span>↗</span></button>
 <button id="cancel" type="button" hidden>Cancel analysis</button>
 <p class="privacy">Your file stays on your device. Analysis runs in your browser; nothing is uploaded.</p>
