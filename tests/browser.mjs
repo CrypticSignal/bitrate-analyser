@@ -64,6 +64,12 @@ try{
    let failed=false;try{parseDash(xml);}catch{failed=true;}check(failed,'Unsupported MPD must fail');
   }
  });
+ assert.equal(await page.locator('.bandwidth-panel').evaluate(panel=>panel.open),false);
+ assert.equal(await page.locator('.segment-panel').evaluate(panel=>panel.open),false);
+ assert.equal(await page.locator('#overhead').isVisible(),false);
+ assert.equal(await page.locator('#segment-files').isVisible(),false);
+ await page.locator('#bandwidth-title').click();await page.locator('#segment-title').click();
+ assert.equal(await page.locator('#overhead').isVisible(),true);
  await page.locator('#segment-files').setInputFiles([
   {name:'media.m3u8',mimeType:'application/vnd.apple.mpegurl',buffer:Buffer.from('#EXTM3U\n#EXTINF:2,\na.ts\n#EXTINF:1,\nb.ts')},
   {name:'a.ts',mimeType:'video/mp2t',buffer:Buffer.alloc(250000)},
