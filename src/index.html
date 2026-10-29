@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,">
-<meta name="theme-color" content="#10191b"><title>Bitrate Plotter — Local WASM analysis</title><link rel="stylesheet" href="./style.css"><script src="./app.js" type="module"></script></head>
+<meta name="theme-color" content="#10191b"><title>Bitrate Plotter — Local WASM analysis</title><link rel="stylesheet" href="./style.css"><script src="./app.js" type="module"></script><script src="./segment-ui.js" type="module"></script></head>
 <body>
 <header><a href="./" class="brand"><span class="brand-icon">▥</span> Bitrate Plotter <span class="badge">WASM</span></a><span class="header-note">A closer look at your media</span></header>
 <main>
@@ -28,5 +28,6 @@
 <div class="details"><div><h3>Analysis details</h3><p id="detail-text">Per-second analysis for audio and video. GOP analysis for video streams.</p><dl id="details"></dl></div><div class="exports"><button id="export-json" disabled>↓ Export JSON</button><button id="export-csv" disabled>↓ Export CSV</button></div></div>
 <div id="gop-panel" hidden><h3>GOP statistics</h3><p id="gop-summary"></p><div class="table-wrap"><table><thead><tr><th>GOP</th><th>Start (s)</th><th>Duration (s)</th><th>Packets</th><th>Mbps</th></tr></thead><tbody id="gop-body"></tbody></table></div><p id="gop-note" class="hint"></p></div>
 </section></div>
+<section class="file-info segment-panel" aria-labelledby="segment-title"><h2 id="segment-title">HLS / DASH segment analysis</h2><p class="hint">Select a local package folder, or a manifest and its segment files together. No remote downloads. Rate = segment file bytes × 8 ÷ manifest playback duration. Includes segment packaging; excludes network overhead and initialization downloads. For separate audio/video renditions, analyze each and account for both.</p><div class="segment-controls"><label class="field">Package folder<input id="segment-folder" type="file" webkitdirectory multiple></label><label class="field">Or manifest + segment files<input id="segment-files" type="file" multiple></label><label class="field">Manifest<select id="segment-manifest"></select></label><label class="field">DASH representation<select id="segment-representation"></select></label></div><p id="segment-status" role="status">Choose local files to begin. HLS media playlists and static single-period DASH SegmentList / SegmentTemplate are supported.</p><div id="segment-output" hidden><p id="segment-summary"></p><div class="table-wrap"><table><thead><tr><th>Segment</th><th>File</th><th>Duration (s)</th><th>Bytes</th><th>Mbps</th></tr></thead><tbody id="segment-rows"></tbody></table></div></div><button id="segment-export" disabled>↓ Segment CSV</button></section>
 <footer><span>BITRATE PLOTTER</span><span>Built from the original Python CLI · Precision in every packet.</span></footer>
 </main></body></html>

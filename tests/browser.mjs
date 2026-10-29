@@ -45,6 +45,35 @@ try{
    worker.postMessage({file:new File([Uint8Array.from(atob(bytes),c=>c.charCodeAt(0))],name),mode:'seconds',timestamp:'pts',stream:'auto',includePartial:false,...options});
   }),{bytes:bytes.toString('base64'),name:path.split('/').at(-1),options});
  }
+ // DASH parsing runs in the browser's XML parser; expected rates are independent.
+ await page.evaluate(async()=>{
+  const {parseDash,analyzeSegments}=await import('./segments.js');
+  const check=(condition,message)=>{if(!condition)throw new Error(message);};
+  const head='<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" mediaPresentationDuration="PT3S"><Period><AdaptationSet contentType="video">';
+  const tail='</AdaptationSet></Period></MPD>';
+  const template=head+'<SegmentTemplate timescale="10" duration="20" media="seg$Number%03d$.m4s" initialization="init.mp4"/><Representation id="v" bandwidth="1000000"/>'+tail;
+  const [r]=parseDash(template);
+  check(r.segments[0].uri==='seg001.m4s'&&r.segments[1].duration===1,'DASH template duration / padding');
+  const result=analyzeSegments(r,[{name:'seg001.m4s',size:250000},{name:'seg002.m4s',size:250000},{name:'init.mp4',size:10}],'main.mpd');
+  check(result.average_mbps===4/3&&result.peak_mbps===2&&result.initialization_bytes===10,'DASH packaged segment rates');
+  const timeline=head+'<Representation id="v"><SegmentTemplate timescale="1" media="$Time$.m4s"><SegmentTimeline><S t="0" d="1" r="-1"/></SegmentTimeline></SegmentTemplate></Representation>'+tail;
+  check(parseDash(timeline)[0].segments.length===3,'DASH bounded negative repeat');
+  const list=head+'<BaseURL>chunks/</BaseURL><Representation id="v"><SegmentList duration="3"><SegmentURL media="all.mp4" mediaRange="5-14"/></SegmentList></Representation>'+tail;
+  const listed=parseDash(list)[0];check(listed.segments[0].uri==='chunks/all.mp4'&&listed.segments[0].range.length===10,'DASH list / BaseURL / byte ranges');
+  for(const xml of ['<MPD><Period/><Period/></MPD>','<MPD type="dynamic"><Period/></MPD>','<broken>']){
+   let failed=false;try{parseDash(xml);}catch{failed=true;}check(failed,'Unsupported MPD must fail');
+  }
+ });
+ await page.locator('#segment-files').setInputFiles([
+  {name:'media.m3u8',mimeType:'application/vnd.apple.mpegurl',buffer:Buffer.from('#EXTM3U\n#EXTINF:2,\na.ts\n#EXTINF:1,\nb.ts')},
+  {name:'a.ts',mimeType:'video/mp2t',buffer:Buffer.alloc(250000)},
+  {name:'b.ts',mimeType:'video/mp2t',buffer:Buffer.alloc(250000)}
+ ]);
+ await page.locator('#segment-output').waitFor({state:'visible'});
+ assert.match(await page.locator('#segment-summary').innerText(),/1\.333 Mbps average · 2 Mbps peak/);
+ assert.equal(await page.locator('#segment-rows tr').count(),2);
+ const segmentDownload=page.waitForEvent('download');await page.locator('#segment-export').click();
+ assert.equal((await segmentDownload).suggestedFilename(),'segment-bitrates.csv');
  const probe=await wasm(multi,{metadataOnly:true});
  assert.equal(probe.scanned_packets,0,'File information probe must not scan packets');
  assert.equal(probe.metadata.streams.length,3);

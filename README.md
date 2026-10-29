@@ -97,3 +97,9 @@ GitHub Pages publishes `dist/` after the verification workflow passes on `main`:
 Whole-stream average includes all valid selected packet bytes, divided by the selected timestamp timeline (latest packet end minus earliest timestamp). Chart average uses only displayed intervals. Unknown packet end durations remain conservative; zero elapsed duration makes the whole-stream average unavailable. The duration metric uses this selected packet timeline rather than the container’s duration.
 
 Combined mode offers video and audio track selectors. Each defaults to the marked default track (otherwise first of its type); choose explicit indices or No audio. JSON records both the requested pairing and the actual selected tracks.
+
+### Local HLS / DASH segment rates
+
+The segment panel accepts a package folder (preserving nested paths) or a manifest and its media files together. It reads only manifest text and `File.size`; no WASM, full media reads, or remote requests are needed. Choose an HLS **media** playlist or a static, single-period DASH representation. HLS EXTINF durations, initialization maps and byte ranges are supported. DASH supports inherited SegmentTemplate / SegmentTimeline (including bounded repeats), numbered/time templates, BaseURL, and SegmentList with optional byte ranges. Master HLS playlists, low-latency delta/part playlists, live DASH, multiple DASH periods and SegmentBase are rejected with guidance rather than guessed. Manifests are limited to 5 MiB and 100,000 segments.
+
+Segment bitrate is packaged file/range bits divided by manifest playback duration; the average is duration-weighted. Initialization bytes are listed separately. Audio and video representations are analyzed separately; account for both when planning delivery. Missing local files and invalid ranges are errors. The table shows up to 500 rows; CSV preserves every segment. Manifest durations are used as declared, so inaccurate manifests affect rates.
