@@ -78,7 +78,7 @@ TEST_BROWSER_EXECUTABLE=/usr/bin/chromium npm run test:browser
 
 The tests cover:
 
-- Eighteen deterministic calculation/parsing tests, including negative timestamps, partial/sparse seconds and variable final GOP duration.
+- Nineteen deterministic calculation/parsing tests, including negative timestamps, partial/sparse seconds and variable final GOP duration.
 - Twelve real WASM/native comparisons, including combined video/audio and multiple audio tracks: H.264/AAC MP4 in PTS, DTS, GOP/PTS, GOP/DTS and embedded-audio modes; MP3; FLAC; VP9/Matroska GOPs; H.264/MPEG-TS DTS; short WAV partial buckets.
 - Exact packet/byte counts and interval values for the compressed-media cases. WAV compares bytes and bucket rates because packetization differs between engine versions.
 - Invalid media, audio GOP rejection, short-clip errors, stream switching in both directions, cancellation, exports, chart interaction and mobile overflow.

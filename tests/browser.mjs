@@ -113,7 +113,7 @@ try{
  assert.equal(await page.locator('#stream option').count(),4);
  assert.equal(await page.locator('#stream').inputValue(),'auto');
  assert.equal(await page.locator('[name=timestamp]:checked').inputValue(),'dts');
- assert.match(await page.locator('#message').innerText(),/excluded from the chart and statistics: \[-1, 0\) s, \[3, 4\) s\./);
+ assert.match(await page.locator('#message').innerText(),/excluded from the chart and statistics: -0\.08-0 s, 3-3\.12 s\./);
  await page.locator('#stream').selectOption('combined');
  assert.equal(await page.locator('#mode option[value=gop]').evaluate(option=>option.disabled),true);
  await page.locator('#analyze').click();await page.getByText('Analysis complete',{exact:true}).waitFor({timeout:60000});

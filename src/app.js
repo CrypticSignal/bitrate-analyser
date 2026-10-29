@@ -145,7 +145,8 @@ function render() {
   $('stream').value = selected;
   updateMode();
   $('message').className = '';
-  const partialRanges=r.partial_seconds.map(second=>`[${second}, ${second+1}) s`).join(', ');
+  const timestamp=value=>String(Number(value.toFixed(6)));
+  const partialRanges=r.partial_seconds.map(second=>`${timestamp(Math.max(second,r.first_timestamp))}-${timestamp(Math.min(second+1,r.end_timestamp))} s`).join(', ');
   $('message').textContent = r.mode === 'seconds' && r.partial_seconds.length ? `${r.partial_seconds.length} partial start/end interval${r.partial_seconds.length===1?'':'s'} ${r.include_partial ? 'included as raw bits per one-second bucket' : 'excluded from the chart and statistics'}: ${partialRanges}.${r.include_partial?' Edge buckets may be lower.':''}` : '';
   $('chart-caption').textContent = `${r.timestamp} timestamps · ${r.points.length.toLocaleString()} intervals`;
   $('gop-panel').hidden = r.mode !== 'gop';

@@ -117,3 +117,13 @@ test('reported metadata preserves rates and distinguishes missing values from ze
  const missing=normalizeMetadata({streams:[{codec_type:'audio'}]});
  assert.equal(missing.container.bit_rate,null);assert.equal(missing.container.start_time,null);
 });
+
+
+test('partial range bounds include packet duration at the actual timeline end',()=>{
+ const r=analyze([{time:.125,size:100,duration:.5},{time:167.8,size:200,duration:.067}]);
+ assert.equal(r.first_timestamp,.125);
+ assert.ok(Math.abs(r.end_timestamp-167.867)<1e-9);
+ assert.deepEqual(r.partial_seconds,[0,167]);
+ const earlier=analyze([{time:0,size:100,duration:2.75},{time:1,size:100,duration:.1}]);
+ assert.equal(earlier.end_timestamp,2.75);
+});

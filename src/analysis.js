@@ -7,6 +7,8 @@ export function summarize(values) {
 export function analyze(input,{mode='seconds',includePartial=false,video=true}={}) {
   const packets=input.filter(p=>Number.isFinite(p.time)&&Number.isFinite(p.size)&&p.size>=0).map(p=>({...p,duration:Math.max(0,finiteNumber(p.duration))})).sort((a,b)=>a.time-b.time);
   if(!packets.length)throw new Error('No valid packet timestamps found. Try a different stream or timestamp type.');
+  let endTimestamp=packets[0].time;
+  for(const p of packets)endTimestamp=Math.max(endTimestamp,p.time+p.duration);
   const points=[],partial=[];
   let missing=0;
   if(mode==='gop'){
@@ -31,8 +33,7 @@ export function analyze(input,{mode='seconds',includePartial=false,video=true}={
     // Bounds use the selected timestamp basis and packet durations, not
     // container duration (which may describe a different stream or PTS basis).
     const start=packets[0].time;
-    let end=start;
-    for(const p of packets)end=Math.max(end,p.time+Math.max(0,p.duration||0));
+    const end=endTimestamp;
     const epsilon=1e-7;
     const first=Math.floor(start);
     const stop=Math.max(first+1,Math.floor(packets.at(-1).time)+1,Math.ceil(end-epsilon));
@@ -50,7 +51,7 @@ export function analyze(input,{mode='seconds',includePartial=false,video=true}={
     if(!points.length)throw new Error('No full one-second intervals found. Enable partial seconds for short clips.');
   }
   const result={mode,points,bitrate_mbps:summarize(points.map(p=>p.bitrate_mbps)),total_packets:packets.length,
-    total_bytes:packets.reduce((sum,p)=>sum+p.size,0),first_timestamp:packets[0].time,last_timestamp:packets.at(-1).time,
+    total_bytes:packets.reduce((sum,p)=>sum+p.size,0),first_timestamp:packets[0].time,last_timestamp:packets.at(-1).time,end_timestamp:endTimestamp,
     partial_seconds:partial,include_partial:includePartial,seconds_without_packets:missing};
   if(mode==='gop'){
     // Overall bits / elapsed time; averaging rates equally biases variable GOPs.
