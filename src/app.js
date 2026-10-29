@@ -22,6 +22,26 @@ function sourceChanged() {
   $('file-size').textContent = file ? `${fmt(file.size / 1024 / 1024, 1)} MB · ready to inspect` : 'or click to browse';
   $('stream').replaceChildren(...streamOptions());
   updateMode();
+  if(!file)return;
+  $('analyze').disabled=true;$('stream').disabled=true;$('cancel').hidden=false;
+  $('status').textContent='Reading streams';$('message').className='';
+  $('message').textContent='Reading stream information…';
+  try{
+    const worker=new Worker(new URL('./probe-worker.js',import.meta.url),{type:'module'});
+    activeWorker=worker;
+    worker.onmessage=({data})=>{
+      if(activeWorker!==worker)return;
+      if(data.type==='progress')$('message').textContent=data.message;
+      else if(data.type==='streams'){
+        $('stream').replaceChildren(...streamOptions(data.metadata));
+        $('stream').value='auto';updateMode();finish();
+        $('status').textContent='Streams ready';$('message').textContent='Choose a stream, then analyze the media.';
+      }else if(data.type==='error')fail(data.message);
+    };
+    worker.onerror=()=>{if(activeWorker===worker)fail('Could not read streams. Check the media file and WASM assets.');};
+    worker.postMessage({file,metadataOnly:true});
+    activeTimer=setTimeout(()=>fail('Reading streams exceeded five minutes. Try a different file.'),300000);
+  }catch(error){fail(error.message);}
 }
 $('file').addEventListener('change', sourceChanged);
 ['dragover', 'dragleave', 'drop'].forEach(type => $('dropzone').addEventListener(type, event => {
@@ -39,7 +59,7 @@ function finish() {
   if(activeWorker)activeWorker.terminate();
   activeWorker=null;clearTimeout(activeTimer);
   $('analyze').disabled=false;$('analyze').innerHTML='Analyze media <span>↗</span>';
-  $('cancel').hidden=true;
+  $('cancel').hidden=true;$('stream').disabled=false;
 }
 function fail(message) {
   $('message').className='error';$('message').textContent=message;
@@ -54,17 +74,20 @@ $('analysis-form').addEventListener('submit', event => {
   $('analyze').disabled=true;$('analyze').textContent='Analyzing locally…';$('cancel').hidden=false;
   $('message').className='';$('message').textContent='Starting local analysis…';$('status').textContent='Analysis in progress';
   try {
-    activeWorker=new Worker(new URL('./probe-worker.js',import.meta.url),{type:'module'});
+    const worker=new Worker(new URL('./probe-worker.js',import.meta.url),{type:'module'});
+    const selection=$('stream').value;
+    activeWorker=worker;
     activeWorker.onmessage=({data})=>{
+      if(activeWorker!==worker)return;
       if(data.type==='progress')$('message').textContent=data.message;
       else if(data.type==='metadata'){
         $('stream').replaceChildren(...streamOptions(data.metadata));
-        $('stream').value=String(data.stream.index);
+        $('stream').value=selection;
         updateMode();
       }else if(data.type==='result'){result=data.result;render();finish();}
       else if(data.type==='error')fail(data.message);
     };
-    activeWorker.onerror=()=>fail('The browser could not run FFprobe. Check that the WASM assets are served correctly, or try a smaller file or another browser.');
+    activeWorker.onerror=()=>{if(activeWorker===worker)fail('The browser could not run FFprobe. Check that the WASM assets are served correctly, or try a smaller file or another browser.');};
     activeWorker.postMessage({file,mode:$('mode').value,timestamp:document.querySelector('[name=timestamp]:checked').value,stream:$('stream').value,includePartial:$('partial').checked});
     activeTimer=setTimeout(()=>fail('Analysis exceeded five minutes. Try a shorter clip or a faster device.'),300000);
   }catch(error){fail(error.message);}
@@ -89,7 +112,7 @@ function render() {
   if (r.stream.fps) detail['Average frame rate'] = `${fmt(r.stream.fps, 3)} FPS`;
   if (r.mode === 'seconds') detail['Seconds without packets'] = r.seconds_without_packets;
   $('details').replaceChildren(...Object.entries(detail).flatMap(([key,value]) => [Object.assign(document.createElement('dt'), {textContent:key}), Object.assign(document.createElement('dd'), {textContent:value})]));
-  const selected = String(r.stream.index);
+  const selected = r.selection || String(r.stream.index);
   $('stream').replaceChildren(...streamOptions(r.metadata));
   $('stream').value = selected;
   updateMode();

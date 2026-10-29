@@ -31,7 +31,7 @@ Once built, the app only requests its own static assets. It can run without an I
 - JSON, CSV, and SVG downloads generated in the browser.
 - Cancellable analysis, bounded packet count, timeout, errors, and mobile layout.
 
-After the first scan the stream selector lists all audio/video tracks. The default selects the first non-cover-art video stream, falling back to audio. Each scan reads all streams so the complete selector remains available. Statistics and exports describe the selected stream or combined selection.
+Selecting or dropping a file runs a metadata-only probe and populates the stream selector with all audio/video tracks before analysis, with Auto selected. The default selects the first non-cover-art video stream, falling back to audio. Each scan reads all streams so the complete selector remains available. Statistics and exports describe the selected stream or combined selection.
 
 Choose **Combined · default video + audio** for a streaming bandwidth estimate. This sums packet bytes from one non-cover-art video track and one audio track in shared one-second buckets, preserving their timestamp offsets. Each type prefers the first track marked as default, falling back to the first track of that type. Video-only files use video alone; audio-only files use individual stream selection. Actual players may choose different tracks based on language or user preferences. Results identify the chosen tracks, and JSON exports include their metadata. DTS is selected by default; PTS remains available.
 

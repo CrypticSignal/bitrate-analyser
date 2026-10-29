@@ -2,7 +2,7 @@ import createFFmpegCore from './vendor/ffmpeg-core.js';
 import {analyze,normalizeMetadata,parsePacket,finiteNumber,playbackStreams} from './analysis.js';
 const MAX_PACKETS=2_000_000;
 // WORKERFS reads slices of the read-only browser File; no input MEMFS copy.
-self.onmessage=async({data:{file,mode,timestamp,stream,includePartial}})=>{
+self.onmessage=async({data:{file,mode,timestamp,stream,includePartial,metadataOnly=false}})=>{
   let core,mounted=false;
   try{
     if(!file?.size)throw new Error('Choose a nonempty media file.');
@@ -31,16 +31,18 @@ self.onmessage=async({data:{file,mode,timestamp,stream,includePartial}})=>{
       else if(kind==='program_version')version=row.version||'unknown';
     });
     const args=['./ffprobe','-v','error','-protocol_whitelist','file','-threads','1'];
-    args.push('-show_packets','-show_streams','-show_format','-show_program_version','-show_entries',
+    if(!metadataOnly)args.push('-show_packets');
+    args.push('-show_streams','-show_format','-show_program_version','-show_entries',
       'packet=stream_index,pts_time,dts_time,duration_time,size,flags:stream=index,codec_name,codec_type,width,height,avg_frame_rate,sample_rate,channels:stream_disposition=attached_pic,default:format=duration:program_version=version',
       '-of','compact=p=1',path);
-    self.postMessage({type:'progress',message:'Inspecting packets on your device…'});
+    self.postMessage({type:'progress',message:metadataOnly?'Reading stream information…':'Inspecting packets on your device…'});
     // core 0.12.10's JS ffprobe() wrapper discards the C return value and
     // returns its untouched ret=-1. Use the exported C entrypoint so failures
     // are checked correctly. This worker invokes it once, then is destroyed.
     const code=core._ffprobe(args.length,core.stringsToPtr(args));
     if(code!==0)throw new Error(errors.trim()||'FFprobe could not read this media. The format may not be included in this WASM build.');
     const info=normalizeMetadata({streams,format:{duration}});
+    if(metadataOnly){self.postMessage({type:'streams',metadata:info});return;}
     const combined=stream==='combined';
     if(combined&&mode==='gop')throw new Error('Combined video + audio bitrate uses one-second intervals. Select a single video stream for GOP analysis.');
     const selectedStreams=combined?playbackStreams(info.streams):[stream==='auto'?info.streams.find(s=>s.type==='video'&&!s.attached_picture)||(info.streams.find(s=>s.type==='audio')||info.streams[0]):info.streams.find(s=>String(s.index)===stream)];
@@ -56,7 +58,7 @@ self.onmessage=async({data:{file,mode,timestamp,stream,includePartial}})=>{
       }
     }
     const result=analyze(packets,{mode,includePartial,video:selected.type==='video'});
-    result.selected_streams=selectedStreams;
+    result.selected_streams=selectedStreams;result.selection=stream;
     result.filename=file.name;result.file_bytes=file.size;result.timestamp=timestamp.toUpperCase();
     result.engine={core:'@ffmpeg/core@0.12.10',ffprobe:version};result.metadata=info;result.stream=selected;result.rejected_packets=selectedStreams.reduce((sum,s)=>sum+(rejectedByStream.get(s.index)||0),0);
     self.postMessage({type:'result',result});
