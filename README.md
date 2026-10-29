@@ -39,7 +39,7 @@ Charts support hover values and filled areas. JSON/CSV retain every interval, in
 | Chart average | Mean of displayed one-second rates, or duration-weighted GOP rates |
 | GOP bitrate | GOP packet bits ÷ GOP duration |
 
-The packet timeline runs from the earliest selected timestamp to the latest packet end. Missing video durations fall back to average frame rate; other unknown durations count as zero. The duration metric uses this timeline, not container duration. A zero-length timeline has no whole-stream average.
+The packet timeline runs from the earliest selected timestamp to the latest packet end. Missing video durations fall back to average frame rate; other unknown durations count as zero. A zero-length timeline has no whole-stream average.
 
 Only full one-second intervals are included by default; excluded partial ranges are listed. **Include partial seconds** retains edge buckets but still divides their bits by one second. Empty full intervals contribute zero. Bytes are assigned by timestamp, not spread across packet duration.
 

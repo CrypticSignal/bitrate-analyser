@@ -177,9 +177,7 @@ function render() {
   $('status').textContent = 'Analysis complete';
   ['average', 'peak', 'minimum'].forEach((id, i) => metric(id, r.bitrate_mbps[['mean','max','min'][i]] * scale, unit));
   metric('whole-average',r.overall_bitrate_mbps===null?null:r.overall_bitrate_mbps*scale,unit);
-  metric('duration', r.duration_seconds, 'sec');
   const tracks=(r.selected_streams||[r.stream]).map(s=>`#${s.index} · ${s.type} / ${s.codec}`).join(' + ');
-  $('stream-note').textContent = `${tracks} · ${r.timestamp}`;
   $('legend').textContent = `${r.stream.type==='combined'?'Video + audio':r.stream.type} · ${unit}`;
   $('chart-title').textContent = r.mode === 'gop' ? 'GOP bitrate over time' : 'Bitrate over time';
   $('average-note').textContent = `${r.mode === 'gop' ? 'Time-weighted across' : 'Across'} ${r.points.length.toLocaleString()} ${r.mode === 'gop' ? 'GOPs' : 'second buckets'}`;
