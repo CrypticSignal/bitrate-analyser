@@ -13,9 +13,12 @@
   </head>
   <body>
     <header>
-      <a href="./" class="brand"
-        ><span class="brand-icon">▥</span> Bitrate Analyser <span class="badge">WASM</span></a
-      ><span class="header-note">A closer look at your media</span>
+      <a href="./" class="brand">
+        <span class="brand-icon">▥</span>
+        Bitrate Analyser
+        <span class="badge">WASM</span>
+      </a>
+      <span class="header-note">A closer look at your media</span>
     </header>
     <main>
       <div class="workspace">
@@ -25,60 +28,69 @@
               <span class="step">01</span>
               <h2>Source & settings</h2>
             </div>
-            <label class="dropzone" id="dropzone"
-              ><input
+            <label class="dropzone" id="dropzone">
+              <input
                 id="file"
                 name="file"
                 type="file"
                 accept="audio/*,video/*,.mkv,.ts,.m2ts,.flac,.avi"
                 required
-              /><span class="upload-icon">↑</span
-              ><strong id="file-name">Drop a media file here</strong
-              ><span id="file-size">or click to browse</span
-              ><small>Audio or video · stays on your device</small></label
-            >
-            <label class="field"
-              >Analysis<select name="mode" id="mode">
+              />
+              <span class="upload-icon">↑</span>
+              <strong id="file-name">Drop a media file here</strong>
+              <span id="file-size">or click to browse</span>
+              <small>Audio or video · stays on your device</small>
+            </label>
+            <label class="field">
+              Analysis
+              <select name="mode" id="mode">
                 <option value="seconds">Bitrate per second</option>
                 <option value="gop">Group of Pictures (GOP)</option>
-              </select></label
-            >
+              </select>
+            </label>
             <div class="field">
               <span>Timestamp</span>
               <div class="segmented">
-                <label><input type="radio" name="timestamp" value="pts" /><span>PTS</span></label
-                ><label
-                  ><input type="radio" name="timestamp" value="dts" checked /><span
-                    >DTS</span
-                  ></label
-                >
+                <label>
+                  <input type="radio" name="timestamp" value="pts" />
+                  <span>PTS</span>
+                </label>
+                <label>
+                  <input type="radio" name="timestamp" value="dts" checked />
+                  <span>DTS</span>
+                </label>
               </div>
               <small>Presentation time or decoding time.</small>
             </div>
-            <label class="field"
-              >Stream<select name="stream" id="stream">
+            <label class="field">
+              Stream
+              <select name="stream" id="stream">
                 <option value="auto">Auto · first video, otherwise audio</option>
-                <option value="combined">Combined · default video + audio</option></select
-              ><small
-                >Combined mode adds one video and one audio track in one-second intervals. Excludes
-                container and network overhead; player track preferences may differ.</small
-              ></label
-            >
+                <option value="combined">Combined · default video + audio</option>
+              </select>
+              <small>
+                Combined mode adds one video and one audio track in one-second intervals. Excludes
+                container and network overhead; player track preferences may differ.
+              </small>
+            </label>
             <div id="pairing" hidden>
-              <label class="field"
-                >Combined video track<select id="video-track">
+              <label class="field">
+                Combined video track
+                <select id="video-track">
                   <option value="default">Default / first video</option>
-                </select></label
-              ><label class="field"
-                >Combined audio track<select id="audio-track">
+                </select>
+              </label>
+              <label class="field">
+                Combined audio track
+                <select id="audio-track">
                   <option value="default">Default / first audio</option>
-                </select></label
-              >
+                </select>
+              </label>
             </div>
-            <label class="check"
-              ><input type="checkbox" name="include_partial" id="partial" />Include partial
-              seconds</label
-            >
+            <label class="check">
+              <input type="checkbox" name="include_partial" id="partial" />
+              Include partial seconds
+            </label>
             <p class="hint" id="partial-hint">
               Bitrate = packet bits in each fixed 1-second interval ÷ 1 second. By default, only
               full intervals within the stream’s packet timeline are included.
@@ -88,10 +100,13 @@
               1 second, so their values may be lower.
             </p>
             <div id="analysis-progress" hidden>
-              <label id="progress-label" for="progress-bar">Starting analysis…</label
-              ><progress id="progress-bar" max="100"></progress>
+              <label id="progress-label" for="progress-bar">Starting analysis…</label>
+              <progress id="progress-bar" max="100"></progress>
             </div>
-            <button class="primary" id="analyze" type="submit">Analyze media <span>↗</span></button>
+            <button class="primary" id="analyze" type="submit">
+              Analyze media
+              <span>↗</span>
+            </button>
             <button id="cancel" type="button" hidden>Cancel analysis</button>
             <p class="privacy">
               Your file stays on your device. Analysis runs in your browser; nothing is uploaded.
@@ -113,9 +128,15 @@
             <div class="chart-toolbar">
               <h3 id="chart-title">Bitrate over time</h3>
               <div class="chart-actions">
-                <label><input type="checkbox" id="compare" disabled /> Compare video / audio</label
-                ><label><input type="checkbox" id="filled" checked /> Fill area</label
-                ><button id="export-svg" disabled>↓ SVG</button>
+                <label>
+                  <input type="checkbox" id="compare" disabled />
+                  Compare video / audio
+                </label>
+                <label>
+                  <input type="checkbox" id="filled" checked />
+                  Fill area
+                </label>
+                <button id="export-svg" disabled>↓ SVG</button>
               </div>
             </div>
             <div id="chart" class="chart">
@@ -129,29 +150,38 @@
               Analyze a file with video and audio to compare tracks.
             </p>
             <div id="comparison-key" class="comparison-key" hidden>
-              <span>Video</span><span>Audio</span><span>Combined</span>
+              <span>Video</span>
+              <span>Audio</span>
+              <span>Combined</span>
             </div>
             <div class="chart-caption">
-              <span><i class="legend-dot"></i> <span id="legend">Selected stream</span></span
-              ><span id="chart-caption">Packet sizes · decimal bitrate units</span>
+              <span>
+                <i class="legend-dot"></i>
+                <span id="legend">Selected stream</span>
+              </span>
+              <span id="chart-caption">Packet sizes · decimal bitrate units</span>
             </div>
           </div>
           <div class="metrics">
             <article>
-              <span>Overall average</span><strong id="whole-average">—</strong
-              ><small>The sum of all packet sizes divided by the duration of the file.</small>
+              <span>Overall average</span>
+              <strong id="whole-average">—</strong>
+              <small>The sum of all packet sizes divided by the duration of the file.</small>
             </article>
             <article>
-              <span>Chart average</span><strong id="average">—</strong
-              ><small id="average-note">Across analyzed intervals</small>
+              <span>Chart average</span>
+              <strong id="average">—</strong>
+              <small id="average-note">Across analyzed intervals</small>
             </article>
             <article>
-              <span>Peak bitrate</span><strong id="peak">—</strong
-              ><small id="peak-note">Maximum interval bitrate</small>
+              <span>Peak bitrate</span>
+              <strong id="peak">—</strong>
+              <small id="peak-note">Maximum interval bitrate</small>
             </article>
             <article>
-              <span>Minimum bitrate</span><strong id="minimum">—</strong
-              ><small id="minimum-note">Minimum interval bitrate</small>
+              <span>Minimum bitrate</span>
+              <strong id="minimum">—</strong>
+              <small id="minimum-note">Minimum interval bitrate</small>
             </article>
           </div>
           <div id="message" role="status" aria-live="polite"></div>
@@ -164,32 +194,25 @@
               <dl id="details"></dl>
             </div>
             <div class="exports">
-              <button id="export-json" disabled>↓ Export JSON</button
-              ><button id="export-csv" disabled>↓ Export CSV</button>
+              <button id="export-json" disabled>↓ Export JSON</button>
+              <button id="export-csv" disabled>↓ Export CSV</button>
             </div>
           </div>
           <details class="file-info bandwidth-panel">
             <summary id="bandwidth-title">Bandwidth planning estimate</summary>
             <div class="segment-controls">
-              <label class="field"
-                >Measured rate source<select id="bandwidth-source"></select></label
-              ><label class="field"
-                >Additional overhead (%)<input
-                  id="overhead"
-                  type="number"
-                  min="0"
-                  max="1000"
-                  step="0.1"
-                  value="5" /></label
-              ><label class="field"
-                >Headroom (%)<input
-                  id="headroom"
-                  type="number"
-                  min="0"
-                  max="1000"
-                  step="0.1"
-                  value="20"
-              /></label>
+              <label class="field">
+                Measured rate source
+                <select id="bandwidth-source"></select>
+              </label>
+              <label class="field">
+                Additional overhead (%)
+                <input id="overhead" type="number" min="0" max="1000" step="0.1" value="5" />
+              </label>
+              <label class="field">
+                Headroom (%)
+                <input id="headroom" type="number" min="0" max="1000" step="0.1" value="20" />
+              </label>
             </div>
             <p><strong id="bandwidth-value">—</strong></p>
             <p id="bandwidth-detail" class="hint" role="status"></p>
@@ -232,14 +255,22 @@
           audio/video renditions, analyze each and account for both.
         </p>
         <div class="segment-controls">
-          <label class="field"
-            >Package folder<input id="segment-folder" type="file" webkitdirectory multiple /></label
-          ><label class="field"
-            >Or manifest + segment files<input id="segment-files" type="file" multiple /></label
-          ><label class="field">Manifest<select id="segment-manifest"></select></label
-          ><label class="field"
-            >DASH representation<select id="segment-representation"></select
-          ></label>
+          <label class="field">
+            Package folder
+            <input id="segment-folder" type="file" webkitdirectory multiple />
+          </label>
+          <label class="field">
+            Or manifest + segment files
+            <input id="segment-files" type="file" multiple />
+          </label>
+          <label class="field">
+            Manifest
+            <select id="segment-manifest"></select>
+          </label>
+          <label class="field">
+            DASH representation
+            <select id="segment-representation"></select>
+          </label>
         </div>
         <p id="segment-status" role="status">
           Choose local files to begin. HLS media playlists and static single-period DASH SegmentList
@@ -265,8 +296,8 @@
         <button id="segment-export" disabled>↓ Segment CSV</button>
       </details>
       <footer>
-        <span>BITRATE ANALYSER</span
-        ><span>Built from the original Python CLI · Precision in every packet.</span>
+        <span>BITRATE ANALYSER</span>
+        <span>Built from the original Python CLI · Precision in every packet.</span>
       </footer>
     </main>
   </body>
