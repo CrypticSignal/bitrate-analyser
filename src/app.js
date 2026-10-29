@@ -2,6 +2,25 @@
 const $ = id => document.getElementById(id);
 let result = null;
 let fileMetadata=null;
+let chartScrollFrame=null;
+function cancelChartScroll(){
+  if(chartScrollFrame!==null)cancelAnimationFrame(chartScrollFrame);
+  chartScrollFrame=null;
+}
+function scrollToCompletedChart(completedResult){
+  cancelChartScroll();
+  // Let result rendering and control/progress layout changes finish before measuring.
+  chartScrollFrame=requestAnimationFrame(()=>{
+    chartScrollFrame=requestAnimationFrame(()=>{
+      chartScrollFrame=null;
+      if(activeWorker||result!==completedResult)return;
+      const chart=document.querySelector('.chart-panel');
+      const immediate=window.matchMedia('(max-width: 720px), (pointer: coarse), (prefers-reduced-motion: reduce)').matches;
+      window.scrollTo({top:Math.max(0,window.scrollY+chart.getBoundingClientRect().top-12),behavior:immediate?'instant':'smooth'});
+    });
+  });
+}
+
 function showProgress(data){
   $('analysis-progress').hidden=false;
   $('progress-label').textContent=data.message;
@@ -59,6 +78,7 @@ function showFileInfo(metadata,file){
   $('file-info').hidden=false;
 }
 function sourceChanged() {
+  cancelChartScroll();
   if(activeWorker)fail('Source changed. Start a new analysis.');
   fileMetadata=null;$('analysis-progress').hidden=true;
   populatePairing(null,true);
@@ -117,6 +137,7 @@ function fail(message) {
 $('cancel').addEventListener('click',()=>fail('Analysis canceled. Your file has not left your device.'));
 $('analysis-form').addEventListener('submit', event => {
   event.preventDefault();
+  cancelChartScroll();
   const file=$('file').files[0];
   if(!file)return;
   if(!('Worker' in window)||!('WebAssembly' in window)){fail('This browser needs Web Workers and WebAssembly support.');return;}
@@ -138,9 +159,7 @@ $('analysis-form').addEventListener('submit', event => {
       }else if(data.type==='result'){
         result=data.result;render();finish();
         showProgress({percent:100,message:'Analysis complete · 100%'});
-        document.querySelector('.chart-panel').scrollIntoView({
-          behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'
-        });
+        scrollToCompletedChart(result);
       }
       else if(data.type==='error')fail(data.message);
     };

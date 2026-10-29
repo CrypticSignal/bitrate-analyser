@@ -207,6 +207,21 @@ try{
  await page.locator('#analyze').click();await page.getByText('Analysis complete',{exact:true}).waitFor({timeout:60000});
  await page.waitForFunction(()=>{const rect=document.querySelector('.chart-panel').getBoundingClientRect();return rect.top>=-1&&rect.top<50;});
  await page.locator('#analyze').click();await page.locator('#cancel').click();assert.equal(await page.locator('#analyze').isEnabled(),true);
+ // Mobile browser emulation, with normal motion and first-analysis layout changes.
+ const mobileContext=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,deviceScaleFactor:3});
+ const mobile=await mobileContext.newPage();
+ mobile.on('pageerror',e=>pageErrors.push(e.message));
+ mobile.on('request',r=>requests.push({url:r.url(),method:r.method()}));
+ await mobile.goto(origin);
+ await mobile.locator('#file').setInputFiles(video);
+ await mobile.getByText('Streams ready',{exact:true}).waitFor({timeout:60000});
+ for(const motion of ['no-preference','reduce']){
+  await mobile.emulateMedia({reducedMotion:motion});
+  await mobile.locator('#analyze').click();
+  await mobile.getByText('Analysis complete',{exact:true}).waitFor({timeout:60000});
+  await mobile.waitForFunction(()=>{const rect=document.querySelector('.chart-panel').getBoundingClientRect();return scrollY>0&&rect.top>=-1&&rect.top<50;},{},{timeout:5000});
+ }
+ await mobileContext.close();
  assert.deepEqual(pageErrors,[]);assert.ok(requests.every(r=>r.method==='GET'&&r.url.startsWith(origin+'/')),'No uploads or external requests');
  console.log('Browser UI, cancellation, exports, mobile layout, and no-upload checks passed.');
 }finally{if(browser)await browser.close();server.close();await rm(temp,{recursive:true,force:true});}
