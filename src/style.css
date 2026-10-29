@@ -19,3 +19,5 @@
 .results>.chart-panel:first-child{margin-top:0}.metrics+#message:not(:empty){margin-top:20px}#file-info{margin-top:20px}
 
 .results>.chart-panel{margin-top:0}#file-info{margin-top:0}#file-info>summary{cursor:pointer;font-size:13px;font-weight:500}#file-info>summary:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
+
+#chart #cursor,#chart #interval-highlight{pointer-events:none}

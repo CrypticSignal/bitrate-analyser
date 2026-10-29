@@ -204,6 +204,8 @@ try{
  assert.ok(await endMarker.evaluate(circle=>Number(circle.getAttribute('cx'))>55));
  await endMarker.dispatchEvent('pointermove',{clientX:0,clientY:0});
  assert.equal(await page.locator('#tooltip-range').textContent(),'0–1 s');
+ await endMarker.hover();
+ assert.equal(await page.locator('#tooltip-range').textContent(),'0–1 s');
 
 
  for(const id of ['peak-note','minimum-note'])assert.match(await page.locator('#'+id).innerText(),/\d+(?:\.\d{3})?–\d+(?:\.\d{3})? s/);
