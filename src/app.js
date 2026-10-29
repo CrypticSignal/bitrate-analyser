@@ -2,12 +2,26 @@
 const $ = id => document.getElementById(id);
 let result = null;
 const fmt = (value, digits = 2) => Number(value).toLocaleString(undefined, {maximumFractionDigits: digits, minimumFractionDigits: digits});
+function streamOptions(metadata){
+  return [new Option('Auto · first video, otherwise audio','auto'),
+    ...(!metadata||metadata.streams.some(s=>s.type==='video'&&!s.attached_picture)?[new Option('Combined · default video + audio','combined')]:[]),
+    ...(metadata?.streams||[]).map(s=>new Option(`#${s.index} · ${s.type} · ${s.codec}`,String(s.index)))];
+}
+function updateMode(){
+  const combined=$('stream').value==='combined';
+  $('mode').querySelector('[value=gop]').disabled=combined;
+  if(combined)$('mode').value='seconds';
+  $('partial').disabled=$('mode').value==='gop';
+  $('partial-hint').textContent=$('mode').value==='gop'?'GOP boundaries are determined by keyframe packet timestamps.':'Bitrate = packet bits in each fixed 1-second interval ÷ 1 second. By default, only full intervals within the stream’s packet timeline are included.';
+}
+$('stream').addEventListener('change',updateMode);
 function sourceChanged() {
   if(activeWorker)fail('Source changed. Start a new analysis.');
   const file = $('file').files[0];
   $('file-name').textContent = file ? file.name : 'Drop a media file here';
   $('file-size').textContent = file ? `${fmt(file.size / 1024 / 1024, 1)} MB · ready to inspect` : 'or click to browse';
-  $('stream').replaceChildren(new Option('Auto · first video, otherwise audio', 'auto'));
+  $('stream').replaceChildren(...streamOptions());
+  updateMode();
 }
 $('file').addEventListener('change', sourceChanged);
 ['dragover', 'dragleave', 'drop'].forEach(type => $('dropzone').addEventListener(type, event => {
@@ -18,10 +32,7 @@ $('file').addEventListener('change', sourceChanged);
     $('file').files = transfer.files; sourceChanged();
   }
 }));
-$('mode').addEventListener('change', () => {
-  $('partial').disabled = $('mode').value === 'gop';
-  $('partial-hint').textContent = $('mode').value === 'gop' ? 'GOP boundaries are determined by keyframe packet timestamps.' : 'Bitrate = packet bits in each fixed 1-second interval ÷ 1 second. By default, only full intervals within the stream’s packet timeline are included.';
-});
+$('mode').addEventListener('change',updateMode);
 let activeWorker = null;
 let activeTimer = null;
 function finish() {
@@ -47,8 +58,9 @@ $('analysis-form').addEventListener('submit', event => {
     activeWorker.onmessage=({data})=>{
       if(data.type==='progress')$('message').textContent=data.message;
       else if(data.type==='metadata'){
-        $('stream').replaceChildren(new Option('Auto · first video, otherwise audio','auto'),...data.metadata.streams.map(s=>new Option(`#${s.index} · ${s.type} · ${s.codec}`,String(s.index))));
+        $('stream').replaceChildren(...streamOptions(data.metadata));
         $('stream').value=String(data.stream.index);
+        updateMode();
       }else if(data.type==='result'){result=data.result;render();finish();}
       else if(data.type==='error')fail(data.message);
     };
@@ -66,19 +78,21 @@ function render() {
   $('status').textContent = 'Analysis complete';
   ['average', 'peak', 'minimum'].forEach((id, i) => metric(id, r.bitrate_mbps[['mean','max','min'][i]] * scale, unit));
   metric('duration', r.metadata.duration || r.last_timestamp - r.first_timestamp, 'sec');
-  $('stream-note').textContent = `Stream ${r.stream.index} · ${r.stream.codec.toUpperCase()} · ${r.timestamp}`;
-  $('legend').textContent = `${r.stream.type} · ${unit}`;
+  const tracks=(r.selected_streams||[r.stream]).map(s=>`#${s.index} · ${s.type} / ${s.codec}`).join(' + ');
+  $('stream-note').textContent = `${tracks} · ${r.timestamp}`;
+  $('legend').textContent = `${r.stream.type==='combined'?'Video + audio':r.stream.type} · ${unit}`;
   $('chart-title').textContent = r.mode === 'gop' ? 'GOP bitrate over time' : 'Bitrate over time';
-  $('average-note').textContent = `Across ${r.points.length.toLocaleString()} ${r.mode === 'gop' ? 'GOPs' : 'second buckets'}`;
+  $('average-note').textContent = `${r.mode === 'gop' ? 'Time-weighted across' : 'Across'} ${r.points.length.toLocaleString()} ${r.mode === 'gop' ? 'GOPs' : 'second buckets'}`;
   $('detail-text').textContent = `${r.total_packets.toLocaleString()} valid packets · ${fmt(r.total_bytes / 1e6)} MB of stream data · ${r.rejected_packets} rejected packets.`;
-  const detail = {'Timestamp basis': r.timestamp, 'Selected stream': `#${r.stream.index} · ${r.stream.type} / ${r.stream.codec}`, 'Observed timestamp range': `${fmt(r.first_timestamp, 3)} – ${fmt(r.last_timestamp, 3)} s`};
+  const detail = {'Timestamp basis': r.timestamp, 'Selected streams': tracks, 'Observed timestamp range': `${fmt(r.first_timestamp, 3)} – ${fmt(r.last_timestamp, 3)} s`};
   if (r.engine) detail['Local engine'] = `FFprobe ${r.engine.ffprobe} · WASM`;
   if (r.stream.fps) detail['Average frame rate'] = `${fmt(r.stream.fps, 3)} FPS`;
   if (r.mode === 'seconds') detail['Seconds without packets'] = r.seconds_without_packets;
   $('details').replaceChildren(...Object.entries(detail).flatMap(([key,value]) => [Object.assign(document.createElement('dt'), {textContent:key}), Object.assign(document.createElement('dd'), {textContent:value})]));
   const selected = String(r.stream.index);
-  $('stream').replaceChildren(new Option('Auto · first video, otherwise audio', 'auto'), ...r.metadata.streams.map(s => new Option(`#${s.index} · ${s.type} · ${s.codec}`, String(s.index))));
+  $('stream').replaceChildren(...streamOptions(r.metadata));
   $('stream').value = selected;
+  updateMode();
   $('message').className = '';
   $('message').textContent = r.mode === 'seconds' && r.partial_seconds.length ? `${r.partial_seconds.length} partial start/end interval(s) ${r.include_partial ? 'included as raw bits per one-second bucket; edge buckets may be lower' : 'excluded from the chart and statistics'}.` : '';
   $('chart-caption').textContent = `${r.timestamp} timestamps · ${r.points.length.toLocaleString()} intervals`;

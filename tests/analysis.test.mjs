@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {analyze,parsePacket,normalizeMetadata} from '../src/analysis.js';
+import {analyze,parsePacket,normalizeMetadata,playbackStreams} from '../src/analysis.js';
 test('exactly three seconds retains all three full intervals',()=>{
  const r=analyze(Array.from({length:75},(_,i)=>({time:i/25,size:1000,duration:.04})));
  assert.deepEqual(r.points.map(p=>p.time),[0,1,2]);assert.ok(Math.abs(r.bitrate_mbps.mean-.2)<1e-12);assert.deepEqual(r.partial_seconds,[]);
@@ -47,4 +47,61 @@ test('fractional edges are excluded; empty full intervals contribute zero',()=>{
 test('unknown final duration is conservative and excessive timestamp gaps are bounded',()=>{
  assert.equal(analyze([{time:0,size:100},{time:1,size:100}]).points.length,1);
  assert.throws(()=>analyze([{time:0,size:1},{time:3000000,size:1}]),/interval limit/);
+});
+
+test('GOP average is total bits divided by duration, excluding pre-keyframe bytes',()=>{
+ const r=analyze([{time:-1,size:9000,duration:1},
+  {time:0,size:1000,duration:1,keyframe:true},
+  {time:1,size:1000,duration:3,keyframe:true}],{mode:'gop'});
+ assert.equal(r.points.length,2);
+ assert.equal(r.points[0].bitrate_mbps,.008);
+ assert.equal(r.points[1].bitrate_mbps,.008/3);
+ assert.equal(r.bitrate_mbps.mean,.004); // 2000 bytes * 8 / 4 seconds / 1e6
+ assert.equal(r.bitrate_mbps.max,.008);
+ assert.equal(r.bitrate_mbps.min,.008/3);
+});
+test('final GOP uses the latest packet end, not just the latest timestamp',()=>{
+ const r=analyze([{time:0,size:100,duration:2,keyframe:true},
+  {time:1,size:100,duration:.25}],{mode:'gop'});
+ assert.equal(r.points[0].duration,2);
+ assert.equal(r.bitrate_mbps.mean,.0008);
+});
+test('unknown or invalid GOP durations never produce NaN rates',()=>{
+ for(const duration of [undefined,NaN,Infinity,-1]){
+  assert.throws(()=>analyze([{time:0,size:100,duration,keyframe:true}],{mode:'gop'}),/No measurable GOPs/);
+  const r=analyze([{time:0,size:100,duration:1,keyframe:true},
+   {time:1,size:200,duration,keyframe:true}],{mode:'gop'});
+  assert.equal(r.points.length,1);
+  assert.equal(r.bitrate_mbps.mean,.0008);
+ }
+});
+test('negative packet durations use a valid frame rate fallback',()=>{
+ assert.equal(parsePacket('pts_time=0|duration_time=-1|size=100','pts',25).duration,.04);
+});
+test('decimal units and fixed-bucket averages conserve analyzed bytes',()=>{
+ const r=analyze([{time:0,size:125000,duration:1},
+  {time:1,size:375000,duration:1}]);
+ assert.deepEqual(r.points.map(p=>p.bitrate_mbps),[1,3]);
+ assert.equal(r.bitrate_mbps.mean,2);
+ assert.equal(r.bitrate_mbps.mean*1e6*2/8,r.total_bytes);
+});
+
+
+test('playback tracks prefer defaults, exclude cover art, and fall back by file order',()=>{
+ const {streams}=normalizeMetadata({streams:[
+  {index:0,codec_type:'video',disposition:{attached_pic:1,default:1}},
+  {index:1,codec_type:'video'}, {index:2,codec_type:'video',disposition:{default:1}},
+  {index:3,codec_type:'audio',disposition:{default:'0'}},
+  {index:4,codec_type:'audio',disposition:{default:'1'}}]});
+ assert.deepEqual(playbackStreams(streams).map(s=>s.index),[2,4]);
+ assert.deepEqual(playbackStreams(streams.map(s=>({...s,default:false}))).map(s=>s.index),[1,3]);
+ assert.deepEqual(playbackStreams(streams.filter(s=>s.type==='video')).map(s=>s.index),[2]);
+ assert.throws(()=>playbackStreams(streams.filter(s=>s.type==='audio')),/requires a video/);
+});
+test('combined buckets sum simultaneous packets and preserve track offsets',()=>{
+ const r=analyze([{time:0,size:125000,duration:1},{time:1,size:125000,duration:1},
+  {time:.5,size:12500,duration:.5},{time:1,size:25000,duration:1}]);
+ assert.deepEqual(r.points.map(p=>p.bytes),[137500,150000]);
+ assert.deepEqual(r.points.map(p=>p.bitrate_mbps),[1.1,1.2]);
+ assert.equal(r.total_bytes,287500);
 });

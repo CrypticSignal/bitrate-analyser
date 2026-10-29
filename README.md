@@ -31,7 +31,11 @@ Once built, the app only requests its own static assets. It can run without an I
 - JSON, CSV, and SVG downloads generated in the browser.
 - Cancellable analysis, bounded packet count, timeout, errors, and mobile layout.
 
-After the first scan the stream selector lists all audio/video tracks. The default selects the first non-cover-art video stream, falling back to audio. Each scan reads all streams so the complete selector remains available. Statistics and exports describe the selected stream.
+After the first scan the stream selector lists all audio/video tracks. The default selects the first non-cover-art video stream, falling back to audio. Each scan reads all streams so the complete selector remains available. Statistics and exports describe the selected stream or combined selection.
+
+Choose **Combined · default video + audio** for a streaming bandwidth estimate. This sums packet bytes from one non-cover-art video track and one audio track in shared one-second buckets, preserving their timestamp offsets. Each type prefers the first track marked as default, falling back to the first track of that type. Video-only files use video alone; audio-only files use individual stream selection. Actual players may choose different tracks based on language or user preferences. Results identify the chosen tracks, and JSON exports include their metadata. DTS is selected by default; PTS remains available.
+
+Combined mode uses per-second analysis; GOP mode requires an individual video stream. The same full/partial interval rules apply to the combined timeline. These rates exclude container, transport, and encryption overhead and do not account for buffering or segment download behavior.
 
 ## What “all client-side” does and does not guarantee
 
@@ -49,7 +53,7 @@ Packets are assigned to fixed `[second, second + 1)` intervals using `floor(time
 
 By default, only intervals fully inside those bounds are included. There is no packet-coverage threshold: low-frame-rate and sparse intervals remain valid. Full intervals with no packets contribute zero bitrate. **Include partial seconds** also retains partial start/end intervals. All interval values are raw packet bits divided by exactly one second; partial intervals are not extrapolated. The mean is an arithmetic mean of displayed intervals, including empty ones. Packet bytes are assigned by their timestamp, not spread across the packet duration.
 
-GOPs start at keyframe packet timestamps in sorted PTS/DTS order. Packets before the first keyframe are excluded from GOP statistics. The next keyframe defines the end; the final GOP uses its final packet's duration, falling back to average frame rate. This is packet-based GOP analysis, not a decoder-level frame dependency graph. Reordered video may produce different PTS and DTS boundaries.
+GOPs start at keyframe packet timestamps in sorted PTS/DTS order. Packets before the first keyframe are excluded from GOP statistics. The next keyframe defines the end; the final GOP ends at the latest packet end time in that GOP, with missing video packet durations falling back to average frame rate. The overall GOP average is total analyzed bits divided by total analyzed GOP duration (a duration-weighted mean), rather than an equal-weight mean of GOP rates. Unknown durations are treated as zero; a GOP with no measurable duration is excluded. This is packet-based GOP analysis, not a decoder-level frame dependency graph. Reordered video may produce different PTS and DTS boundaries.
 
 SVG charts preserve extrema during display downsampling; JSON/CSV include every result interval. The GOP table displays the first 500 rows. Exports store decimal Mbps regardless of the chart display unit.
 
@@ -74,8 +78,8 @@ TEST_BROWSER_EXECUTABLE=/usr/bin/chromium npm run test:browser
 
 The tests cover:
 
-- Ten deterministic calculation/parsing tests, including negative timestamps, partial/sparse seconds and variable final GOP duration.
-- Ten real WASM/native comparisons: H.264/AAC MP4 in PTS, DTS, GOP/PTS, GOP/DTS and embedded-audio modes; MP3; FLAC; VP9/Matroska GOPs; H.264/MPEG-TS DTS; short WAV partial buckets.
+- Seventeen deterministic calculation/parsing tests, including negative timestamps, partial/sparse seconds and variable final GOP duration.
+- Twelve real WASM/native comparisons, including combined video/audio and multiple audio tracks: H.264/AAC MP4 in PTS, DTS, GOP/PTS, GOP/DTS and embedded-audio modes; MP3; FLAC; VP9/Matroska GOPs; H.264/MPEG-TS DTS; short WAV partial buckets.
 - Exact packet/byte counts and interval values for the compressed-media cases. WAV compares bytes and bucket rates because packetization differs between engine versions.
 - Invalid media, audio GOP rejection, short-clip errors, stream switching in both directions, cancellation, exports, chart interaction and mobile overflow.
 - All observed browser requests must be same-origin GETs: no media uploads or external requests.

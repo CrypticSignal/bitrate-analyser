@@ -5,7 +5,7 @@ export function summarize(values) {
   return {min,mean:sum/values.length,max};
 }
 export function analyze(input,{mode='seconds',includePartial=false,video=true}={}) {
-  const packets=input.filter(p=>Number.isFinite(p.time)&&Number.isFinite(p.size)&&p.size>=0).sort((a,b)=>a.time-b.time);
+  const packets=input.filter(p=>Number.isFinite(p.time)&&Number.isFinite(p.size)&&p.size>=0).map(p=>({...p,duration:Math.max(0,finiteNumber(p.duration))})).sort((a,b)=>a.time-b.time);
   if(!packets.length)throw new Error('No valid packet timestamps found. Try a different stream or timestamp type.');
   const points=[],partial=[];
   let missing=0;
@@ -14,8 +14,11 @@ export function analyze(input,{mode='seconds',includePartial=false,video=true}={
     const groups=[];
     for(const p of packets){if(p.keyframe)groups.push([]);if(groups.length)groups.at(-1).push(p);}
     for(let i=0;i<groups.length;i++){
-      const group=groups[i],last=group.at(-1);
-      const end=i+1<groups.length?groups[i+1][0].time:last.time+last.duration;
+      const group=groups[i];
+      // A preceding packet can extend beyond the last timestamp (variable durations).
+      let end=group[0].time;
+      for(const p of group)end=Math.max(end,p.time+p.duration);
+      if(i+1<groups.length)end=groups[i+1][0].time;
       const duration=end-group[0].time;
       if(duration<=0)continue;
       const size=group.reduce((sum,p)=>sum+p.size,0);
@@ -50,6 +53,9 @@ export function analyze(input,{mode='seconds',includePartial=false,video=true}={
     total_bytes:packets.reduce((sum,p)=>sum+p.size,0),first_timestamp:packets[0].time,last_timestamp:packets.at(-1).time,
     partial_seconds:partial,include_partial:includePartial,seconds_without_packets:missing};
   if(mode==='gop'){
+    // Overall bits / elapsed time; averaging rates equally biases variable GOPs.
+    result.bitrate_mbps.mean=points.reduce((sum,p)=>sum+p.bytes,0)*8/
+      points.reduce((sum,p)=>sum+p.duration,0)/1e6;
     result.gop={count:points.length,duration_seconds:summarize(points.map(p=>p.duration)),
       packets:summarize(points.map(p=>p.packets)),size_megabits:summarize(points.map(p=>p.bytes*8/1e6))};
   }
@@ -62,7 +68,7 @@ export function finiteNumber(value,fallback=0){
 export function normalizeMetadata(data){
   const streams=(data.streams||[]).filter(s=>['audio','video'].includes(s.codec_type)).map(s=>{
     const [a,b]=String(s.avg_frame_rate||'0/1').split('/').map(Number);
-    return {index:s.index,type:s.codec_type,attached_picture:!!s.disposition?.attached_pic,codec:s.codec_name||'unknown',
+    return {index:s.index,type:s.codec_type,attached_picture:!!Number(s.disposition?.attached_pic),default:!!Number(s.disposition?.default),codec:s.codec_name||'unknown',
       fps:Number.isFinite(a/b)?a/b:0,width:s.width===undefined?null:finiteNumber(s.width),height:s.height===undefined?null:finiteNumber(s.height),sample_rate:s.sample_rate??null,channels:s.channels===undefined?null:finiteNumber(s.channels)};
   });
   if(!streams.length)throw new Error('No audio or video streams found. This format may not be included in the WASM build.');
@@ -74,5 +80,16 @@ export function parsePacket(line,timestamp,fps=0){
   if(!('size' in row))return null;
   const time=finiteNumber(row[`${timestamp}_time`],NaN),size=finiteNumber(row.size,-1);
   if(!Number.isFinite(time)||size<0)return false;
-  return {time,size,duration:finiteNumber(row.duration_time)||(fps>0?1/fps:0),keyframe:(row.flags||'').includes('K')};
+  return {time,size,duration:Math.max(0,finiteNumber(row.duration_time))||(Number.isFinite(fps)&&fps>0?1/fps:0),keyframe:(row.flags||'').includes('K')};
+}
+
+/** Choose one playable video and audio track; player language preferences may differ. */
+export function playbackStreams(streams){
+  const choose=type=>{
+    const candidates=streams.filter(s=>s.type===type&&!s.attached_picture);
+    return candidates.find(s=>s.default)||candidates[0];
+  };
+  const video=choose('video');
+  if(!video)throw new Error('Combined bitrate requires a video stream. Select an audio stream instead.');
+  return [video,choose('audio')].filter(Boolean);
 }
