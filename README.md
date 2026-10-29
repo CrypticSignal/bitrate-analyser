@@ -83,3 +83,7 @@ The tests cover:
 ## Third-party software
 
 See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The core package declares GPL-2.0-or-later and includes FFmpeg and other components; observe their license/source obligations when distributing compiled assets.
+
+## Hosted version
+
+GitHub Pages publishes `dist/` after the verification workflow passes on `main`: https://crypticsignal.github.io/bitrate-plotter-wasm/ . Repository Settings → Pages must use **GitHub Actions** as the build source.
