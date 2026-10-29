@@ -1,14 +1,14 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {intervalAtTime,intervalBounds,stepPath} from '../src/chart-intervals.js';
+import {intervalAtTime,intervalBounds,intervalPath} from '../src/chart-intervals.js';
 test('hover selects the containing interval rather than the nearest start',()=>{
  const points=[{time:53,duration:1},{time:54,duration:1}];
  assert.equal(intervalAtTime(points,53.9),points[0]);
  assert.equal(intervalAtTime(points,54),points[1]);
 });
-test('steps span whole intervals, including the final interval, without bridging sampled gaps',()=>{
+test('horizontal segments span intervals without vertical connectors or sampled gap bridges',()=>{
  const points=[{time:53,duration:1,rate:10},{time:54,duration:1,rate:5},{time:57,duration:1,rate:2}];
- assert.equal(stepPath(points,'rate',{first_timestamp:53,end_timestamp:58},x=>x,y=>y),'M53,10 H54 V5 H55 M57,2 H58');
+ assert.equal(intervalPath(points,'rate',{first_timestamp:53,end_timestamp:58},x=>x,y=>y),'M53,10 H54 M54,5 H55 M57,2 H58');
 });
 test('partial and variable-duration GOP intervals use their true bounds',()=>{
  const timeline={first_timestamp:-.067,end_timestamp:57.921};

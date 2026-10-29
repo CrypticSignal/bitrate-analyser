@@ -187,11 +187,14 @@ try{
  const selectedAverage=await page.locator('#whole-average').innerText();
  await page.locator('#compare').check();
  assert.equal(await page.locator('#chart path[data-series]').count(),3);
+ for(const path of await page.locator('#chart path[data-series]').all())assert.doesNotMatch(await path.getAttribute('d'),/[VL]/);
  assert.match(await page.locator('#compare-note').innerText(),/#0 video.*#1 audio/);
  assert.equal(await page.locator('#whole-average').innerText(),selectedAverage);
  await page.locator('#compare').uncheck();
  assert.equal(await page.locator('#chart path[data-series]').count(),1);
- assert.match(await page.locator('#chart path[data-series]').getAttribute('d'),/H.*V.*H/);
+ const intervalLine=await page.locator('#chart path[data-series]').getAttribute('d');
+ assert.match(intervalLine,/H.*M.*H/);
+ assert.doesNotMatch(intervalLine,/[VL]/);
  // Late in the 1–2 second interval, hover must not jump to the 2–3 bucket.
  await page.evaluate(()=>{
   const svg=document.querySelector('#chart svg'),width=svg.viewBox.baseVal.width;
@@ -221,6 +224,7 @@ try{
  assert.equal(await page.locator('#legend').innerText(),'Video + audio · Mbps');
  await page.locator('#compare').check();
  assert.equal(await page.locator('#chart path[data-series]').count(),3);
+ for(const path of await page.locator('#chart path[data-series]').all())assert.doesNotMatch(await path.getAttribute('d'),/[VL]/);
  assert.equal(await page.locator('#comparison-key').isVisible(),true);
  await page.locator('#chart svg').hover();assert.match(await page.locator('#tooltip').textContent(),/V .* A .* Σ /);
  const compareCsvPending=page.waitForEvent('download');await page.locator('#export-csv').click();
@@ -238,6 +242,7 @@ try{
  assert.equal(await page.locator('#compare').isEnabled(),true);
  await page.locator('#compare').check();
  assert.equal(await page.locator('#chart path[data-series]').count(),3);
+ for(const path of await page.locator('#chart path[data-series]').all())assert.doesNotMatch(await path.getAttribute('d'),/[VL]/);
  await page.locator('#compare').uncheck();
  assert.equal(await page.locator('#chart path[data-series]').count(),1);
  await page.locator('#stream').selectOption('0');await page.locator('#mode').selectOption('gop');await page.locator('#analyze').click();await page.locator('.results[data-state="complete"]').waitFor({timeout:60000});

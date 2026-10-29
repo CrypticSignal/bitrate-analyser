@@ -6,13 +6,10 @@ export function intervalAtTime(points,time){
   while(lo<hi){const mid=Math.floor((lo+hi)/2);if(points[mid].time<=time)lo=mid+1;else hi=mid;}
   return points[Math.max(0,lo-1)];
 }
-export function stepPath(points,key,timeline,x,y){
-  let previousEnd=null;
+export function intervalPath(points,key,timeline,x,y){
   return points.map(point=>{
     const {start,end}=intervalBounds(point,timeline);
-    const contiguous=previousEnd!==null&&Math.abs(start-previousEnd)<1e-7;
-    previousEnd=end;
-    // Do not extend a sampled value across omitted intervals.
-    return `${contiguous?'V'+y(point[key]):'M'+x(start)+','+y(point[key])} H${x(end)}`;
+    // Independent horizontal segments: no implied instantaneous rate transitions.
+    return `M${x(start)},${y(point[key])} H${x(end)}`;
   }).join(' ');
 }

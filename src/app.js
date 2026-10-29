@@ -1,5 +1,5 @@
 'use strict';
-import {intervalBounds,intervalAtTime,stepPath} from './chart-intervals.js';
+import {intervalBounds,intervalAtTime,intervalPath} from './chart-intervals.js';
 const $ = id => document.getElementById(id);
 let result = null;
 let fileMetadata=null;
@@ -231,7 +231,7 @@ function drawChart() {
   const max = Math.max(...[chartData.bitrate_mbps.max * scale * 1.12, 0.001]);
   const x = t => left + (t-start)/(end-start)*(right-left), y = b => bottom-b*scale/max*(bottom-top);
   $('comparison-key').hidden=!compare;
-  $('chart-caption').textContent=`${r.timestamp} timestamps · ${points.length.toLocaleString()} intervals · steps span intervals; dots mark interval ends${r.include_partial?' · partial-second rates still use a 1 s divisor':''}${compare?' · combined comparison timeline':''}`;
+  $('chart-caption').textContent=`${r.timestamp} timestamps · ${points.length.toLocaleString()} intervals · horizontal segments span intervals; dots mark interval ends${r.include_partial?' · partial-second rates still use a 1 s divisor':''}${compare?' · combined comparison timeline':''}`;
   const series=compare?[{key:'bitrate_mbps',id:'combined',label:'Combined',color:'#baf28a'},
     {key:'video_bitrate_mbps',id:'video',label:'Video',color:'#7dcfff'},
     {key:'audio_bitrate_mbps',id:'audio',label:'Audio',color:'#f6b970'}]:[{key:'bitrate_mbps',id:'selected',label:'Selected stream',color:'#baf28a'}];
@@ -252,7 +252,7 @@ function drawChart() {
     const t=start+(end-start)*i/4, xx=x(t);
     grid += `<text x="${xx}" y="${bottom+26}" text-anchor="middle">${fmt(t,1)}s</text>`;
   }
-  const makePath=line=>stepPath(line.sampled,line.key,chartData,t=>x(t).toFixed(2),rate=>y(rate).toFixed(2));
+  const makePath=line=>intervalPath(line.sampled,line.key,chartData,t=>x(t).toFixed(2),rate=>y(rate).toFixed(2));
   const primary=lines[0],path=makePath(primary),sampled=primary.sampled;
   const fill=$('filled').checked?sampled.map(p=>{
     const {start,end}=intervalBounds(p,chartData);
