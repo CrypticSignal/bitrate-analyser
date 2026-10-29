@@ -200,6 +200,11 @@ try{
  });
  assert.equal(await page.locator('#tooltip-range').textContent(),'1–2 s');
  assert.equal(await page.locator('#interval-highlight').getAttribute('visibility'),'visible');
+ const endMarker=page.locator('#chart circle[data-interval-start="0"]');
+ assert.ok(await endMarker.evaluate(circle=>Number(circle.getAttribute('cx'))>55));
+ await endMarker.dispatchEvent('pointermove',{clientX:0,clientY:0});
+ assert.equal(await page.locator('#tooltip-range').textContent(),'0–1 s');
+
 
  for(const id of ['peak-note','minimum-note'])assert.match(await page.locator('#'+id).innerText(),/\d+(?:\.\d{3})?–\d+(?:\.\d{3})? s/);
  const rangeEntry=page.locator('#details dt').filter({hasText:'Analysis range'});
