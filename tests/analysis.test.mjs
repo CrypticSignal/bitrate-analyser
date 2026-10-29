@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { analyze, parsePacket, normalizeMetadata, playbackStreams } from '../src/analysis.js';
+
 test('exactly three seconds retains all three full intervals', () => {
   const r = analyze(
     Array.from({ length: 75 }, (_, i) => ({ time: i / 25, size: 1000, duration: 0.04 })),
@@ -12,6 +13,7 @@ test('exactly three seconds retains all three full intervals', () => {
   assert.ok(Math.abs(r.bitrate_mbps.mean - 0.2) < 1e-12);
   assert.deepEqual(r.partial_seconds, []);
 });
+
 test('negative timestamps use floor and gaps are explicit', () => {
   const r = analyze(
     [
@@ -26,10 +28,12 @@ test('negative timestamps use floor and gaps are explicit', () => {
   );
   assert.equal(r.seconds_without_packets, 2);
 });
+
 test('partial seconds are opt-in; missing packets are not invented', () => {
   assert.throws(() => analyze([{ time: 0, size: 100 }]), /No full one-second intervals/);
   assert.equal(analyze([{ time: 0, size: 100 }], { includePartial: true }).points[0].bytes, 100);
 });
+
 test('GOP boundary and final variable duration produce known rates', () => {
   const r = analyze(
     [
@@ -44,10 +48,12 @@ test('GOP boundary and final variable duration produce known rates', () => {
   assert.ok(Math.abs(r.points[1].duration - 0.4) < 1e-12);
   assert.ok(Math.abs(r.points[1].bitrate_mbps - 0.014) < 1e-12);
 });
+
 test('invalid timestamps, sparse streams and audio GOP errors remain actionable', () => {
   assert.throws(() => analyze([{ time: NaN, size: 100 }]), /No valid/);
   assert.throws(() => analyze([{ time: 0, size: 100 }], { mode: 'gop', video: false }), /video/);
 });
+
 test('compact packet parsing handles DTS, N/A, flags and side-data lines', () => {
   assert.deepEqual(
     parsePacket('stream_index=0|dts_time=-0.04|duration_time=0.04|size=1200|flags=K__', 'dts'),
@@ -56,6 +62,7 @@ test('compact packet parsing handles DTS, N/A, flags and side-data lines', () =>
   assert.equal(parsePacket('pts_time=N/A|size=12', 'pts'), false);
   assert.equal(parsePacket('side_data_type=Skip Samples', 'pts'), null);
 });
+
 test('stream metadata tolerates unknown frame rates and preserves indices', () => {
   const r = normalizeMetadata({
     streams: [{ index: 2, codec_type: 'audio', codec_name: 'aac', avg_frame_rate: '0/0' }],
@@ -72,6 +79,7 @@ test('low frame rate needs no packet-coverage heuristic', () => {
   assert.equal(r.points.length, 1);
   assert.equal(r.points[0].bytes, 300);
 });
+
 test('fractional edges are excluded; empty full intervals contribute zero', () => {
   const data = [
     { time: 0.2, size: 100, duration: 0.2 },
@@ -92,6 +100,7 @@ test('fractional edges are excluded; empty full intervals contribute zero', () =
   assert.equal(all.points[0].bitrate_mbps, 0.0008);
   assert.equal(all.points[0].duration, 1);
 });
+
 test('unknown final duration is conservative and excessive timestamp gaps are bounded', () => {
   assert.equal(
     analyze([
@@ -126,6 +135,7 @@ test('GOP average is total bits divided by duration, excluding pre-keyframe byte
   assert.equal(r.bitrate_mbps.max, 0.008);
   assert.equal(r.bitrate_mbps.min, 0.008 / 3);
 });
+
 test('final GOP uses the latest packet end, not just the latest timestamp', () => {
   const r = analyze(
     [
@@ -137,6 +147,7 @@ test('final GOP uses the latest packet end, not just the latest timestamp', () =
   assert.equal(r.points[0].duration, 2);
   assert.equal(r.bitrate_mbps.mean, 0.0008);
 });
+
 test('unknown or invalid GOP durations never produce NaN rates', () => {
   for (const duration of [undefined, NaN, Infinity, -1]) {
     assert.throws(
@@ -154,9 +165,11 @@ test('unknown or invalid GOP durations never produce NaN rates', () => {
     assert.equal(r.bitrate_mbps.mean, 0.0008);
   }
 });
+
 test('negative packet durations use a valid frame rate fallback', () => {
   assert.equal(parsePacket('pts_time=0|duration_time=-1|size=100', 'pts', 25).duration, 0.04);
 });
+
 test('decimal units and fixed-bucket averages conserve analyzed bytes', () => {
   const r = analyze([
     { time: 0, size: 125000, duration: 1 },
@@ -197,6 +210,7 @@ test('playback tracks prefer defaults, exclude cover art, and fall back by file 
     /requires a video/,
   );
 });
+
 test('combined buckets sum simultaneous packets and preserve track offsets', () => {
   const r = analyze([
     { time: 0, size: 125000, duration: 1 },
@@ -266,7 +280,7 @@ test('partial range bounds include packet duration at the actual timeline end', 
   assert.equal(earlier.end_timestamp, 2.75);
 });
 
-test('whole-stream average includes partial bytes independently of chart intervals', () => {
+test('overall average includes partial bytes independently of chart intervals', () => {
   const data = [
     { time: 0, size: 125000, duration: 1 },
     { time: 1, size: 250000, duration: 0.5 },
