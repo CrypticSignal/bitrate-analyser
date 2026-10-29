@@ -97,7 +97,7 @@ try{
   for(const key of path===short?['total_bytes']:['total_packets','total_bytes'])assert.equal(actual[key],expected[key],`${path} ${key}`);
   assert.equal(actual.points.length,expected.points.length,`${path} interval count`);
   for(let i=0;i<actual.points.length;i++)for(const key of path===short?['time','duration','bytes','bitrate_mbps']:['time','duration','bytes','packets','bitrate_mbps'])assert.ok(Math.abs(actual.points[i][key]-expected.points[i][key])<1e-5,`${path} interval ${i} ${key}: ${actual.points[i][key]} vs ${expected.points[i][key]}`);
-  if(options.stream==='combined'){assert.deepEqual(actual.selected_streams.map(s=>s.index),path===multi?[0,2]:[0,1]);assert.equal(actual.stream.index,'combined');}
+  if(options.stream==='combined'){assert.deepEqual(actual.selected_streams.map(s=>s.index),path===multi?[0,2]:[0,1]);assert.equal(actual.stream.index,'combined');for(const point of actual.points){assert.equal(point.video_bytes+point.audio_bytes,point.bytes);assert.ok(Math.abs(point.video_bitrate_mbps+point.audio_bitrate_mbps-point.bitrate_mbps)<1e-12);}}
   console.log('Native parity:',path.split('/').at(-1),JSON.stringify(options));
  }
  await assert.rejects(()=>wasm(audio,{stream:'combined'}),/requires a video/);
@@ -164,8 +164,24 @@ try{
  assert.equal(await page.locator('#stream').inputValue(),'combined');
  assert.match(await page.locator('#stream-note').innerText(),/#0.*video.*#1.*audio/);
  assert.equal(await page.locator('#legend').innerText(),'Video + audio · Mbps');
+ await page.locator('#compare').check();
+ assert.equal(await page.locator('#chart path[data-series]').count(),3);
+ assert.equal(await page.locator('#comparison-key').isVisible(),true);
+ await page.locator('#chart svg').hover();assert.match(await page.locator('#tooltip').textContent(),/V .* A .* Σ /);
+ const compareCsvPending=page.waitForEvent('download');await page.locator('#export-csv').click();
+ const compareCsv=await compareCsvPending;
+ assert.match(await readFile(await compareCsv.path(),'utf8'),/video_bytes,audio_bytes,video_bitrate_mbps,audio_bitrate_mbps/);
+ const compareSvgPending=page.waitForEvent('download');await page.locator('#export-svg').click();
+ const compareSvg=await compareSvgPending;
+ assert.match(await readFile(await compareSvg.path(),'utf8'),/data-series="audio"/);
+ await page.setViewportSize({width:390,height:844});
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+ await page.setViewportSize({width:1440,height:1000});
+
  await page.locator('#stream').selectOption('1');await page.locator('#analyze').click();await page.getByText('Analysis complete',{exact:true}).waitFor({timeout:60000});
  assert.equal(await page.locator('#stream option').count(),4);
+ assert.equal(await page.locator('#compare').isDisabled(),true);
+ assert.equal(await page.locator('#chart path[data-series]').count(),1);
  await page.locator('#stream').selectOption('0');await page.locator('#mode').selectOption('gop');await page.locator('#analyze').click();await page.getByText('Analysis complete',{exact:true}).waitFor({timeout:60000});
  assert.ok(await page.locator('#gop-body tr').count()>0);
  await page.locator('#filled').check();await page.locator('#chart svg').hover();

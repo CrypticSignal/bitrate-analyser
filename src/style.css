@@ -7,3 +7,5 @@
 .segment-panel{margin-top:24px}.segment-controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));gap:16px}.segment-controls input{max-width:100%;font-size:11px}#segment-status,#segment-summary{font-size:12px;line-height:1.6}.segment-panel td:nth-child(2){text-align:left;overflow-wrap:anywhere;max-width:240px}
 
 .bandwidth-panel{margin-top:20px}.bandwidth-panel input{width:100%;padding:10px;border:1px solid var(--line);border-radius:5px;background:#101b1d;color:inherit}#bandwidth-value{color:var(--accent);font-size:24px;font-weight:500}
+
+.comparison-key{display:flex;gap:18px;padding:8px 20px;font-size:11px}.comparison-key span::before{content:'━';margin-right:5px}.comparison-key span:nth-child(1){color:#7dcfff}.comparison-key span:nth-child(2){color:#f6b970}.comparison-key span:nth-child(3){color:#baf28a}.chart-toolbar{flex-wrap:wrap}.chart-actions{flex-wrap:wrap}

@@ -147,3 +147,13 @@ test('combined selection supports explicit tracks, no audio, and rejects invalid
  assert.throws(()=>playbackStreams(streams,{audio:'9'}),/not available/);
  assert.throws(()=>playbackStreams(streams,{video:'3'}),/not available/);
 });
+
+
+test('comparison components share buckets, preserve offsets and sum to combined',()=>{
+ const r=analyze([{time:-.1,size:100,duration:.1,media_type:'audio'},
+ {time:0,size:1000,duration:1,media_type:'video'}, {time:.5,size:250,duration:.5,media_type:'audio'},
+ {time:2,size:500,duration:.5,media_type:'video'}],{compare:true,includePartial:true});
+ assert.equal(r.comparison,true);assert.equal(r.points[2].bytes,0);
+ for(const p of r.points){assert.equal(p.video_bytes+p.audio_bytes,p.bytes);assert.ok(Math.abs(p.video_bitrate_mbps+p.audio_bitrate_mbps-p.bitrate_mbps)<1e-12);}
+ assert.equal(r.points[0].video_bytes,0);assert.equal(r.points[1].audio_bytes,250);
+});

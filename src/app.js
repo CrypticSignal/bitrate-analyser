@@ -173,6 +173,8 @@ function render() {
     $('gop-note').textContent = r.points.length > 500 ? 'Showing the first 500 GOPs. Exports include all GOPs.' : 'Exports include all GOPs.';
   }
   ['export-svg','export-json','export-csv'].forEach(id => $(id).disabled = false);
+  $('compare').disabled=!r.comparison;
+  if(!r.comparison)$('compare').checked=false;
   drawChart();
   window.dispatchEvent(new CustomEvent('bitrate-result',{detail:r}));
 }
@@ -183,15 +185,21 @@ function drawChart() {
   const start = points[0].time, end = Math.max(start + 1, points.at(-1).time + points.at(-1).duration);
   const max = Math.max(...[r.bitrate_mbps.max * scale * 1.12, 0.001]);
   const x = t => left + (t-start)/(end-start)*(right-left), y = b => bottom-b*scale/max*(bottom-top);
-  // Bound SVG size while preserving peaks and troughs in each display column.
-  const sampled = [];
-  const stride = Math.max(1, Math.ceil(points.length / 900));
-  for (let i=0; i<points.length; i+=stride) {
-    const group = points.slice(i, i+stride);
-    const low = group.reduce((a,b) => a.bitrate_mbps < b.bitrate_mbps ? a : b);
-    const high = group.reduce((a,b) => a.bitrate_mbps > b.bitrate_mbps ? a : b);
-    sampled.push(...[...new Set([group[0], low, high, group.at(-1)])].sort((a,b) => a.time-b.time));
-  }
+  const compare=$('compare').checked&&r.comparison;
+  $('comparison-key').hidden=!compare;
+  const series=compare?[{key:'bitrate_mbps',id:'combined',label:'Combined',color:'#baf28a'},
+    {key:'video_bitrate_mbps',id:'video',label:'Video',color:'#7dcfff'},
+    {key:'audio_bitrate_mbps',id:'audio',label:'Audio',color:'#f6b970'}]:[{key:'bitrate_mbps',id:'selected',label:'Selected stream',color:'#baf28a'}];
+  // Preserve extrema independently for every line so small audio peaks survive.
+  const sample=key=>{
+    const sampled=[],stride=Math.max(1,Math.ceil(points.length/900));
+    for(let i=0;i<points.length;i+=stride){
+      const group=points.slice(i,i+stride),low=group.reduce((a,b)=>a[key]<b[key]?a:b),high=group.reduce((a,b)=>a[key]>b[key]?a:b);
+      sampled.push(...[...new Set([group[0],low,high,group.at(-1)])].sort((a,b)=>a.time-b.time));
+    }
+    return sampled;
+  };
+  const lines=series.map(s=>({...s,sampled:sample(s.key)}));
   let grid = '';
   for(let i=0;i<=4;i++) {
     const yy=top+(bottom-top)*i/4, value=max*(1-i/4);
@@ -199,10 +207,13 @@ function drawChart() {
     const t=start+(end-start)*i/4, xx=x(t);
     grid += `<text x="${xx}" y="${bottom+26}" text-anchor="middle">${fmt(t,1)}s</text>`;
   }
-  const path = sampled.map((p,i) => `${i ? 'L' : 'M'}${x(p.time).toFixed(2)},${y(p.bitrate_mbps).toFixed(2)}`).join(' ');
-  const fill = $('filled').checked ? `<path d="${path} L${x(sampled.at(-1).time)},${bottom} L${x(sampled[0].time)},${bottom} Z" fill="#baf28a" opacity=".12"/>` : '';
-  const unit = scale === 1 ? 'Mbps' : 'kbps';
-  $('chart').innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Bitrate over time in ${unit}"><rect width="${width}" height="350" fill="#142022"/><g font-family="system-ui,sans-serif" font-size="12" fill="#91a69c">${grid}<text x="${left}" y="13">${unit}</text></g>${fill}<path d="${path}" fill="none" stroke="#baf28a" stroke-width="2" stroke-linejoin="round"/><line id="cursor" x1="0" x2="0" y1="${top}" y2="${bottom}" stroke="#799b75" visibility="hidden"/><text id="tooltip" x="${right}" y="14" text-anchor="end" fill="#dbeecf" font-family="system-ui" font-size="12"></text></svg>`;
+  const makePath=line=>line.sampled.map((p,i)=>`${i?'L':'M'}${x(p.time).toFixed(2)},${y(p[line.key]).toFixed(2)}`).join(' ');
+  const primary=lines[0],path=makePath(primary),sampled=primary.sampled;
+  const fill=$('filled').checked?`<path d="${path} L${x(sampled.at(-1).time)},${bottom} L${x(sampled[0].time)},${bottom} Z" fill="#baf28a" opacity=".12"/>`:'';
+  const paths=lines.map(line=>`<path data-series="${line.id}" d="${makePath(line)}" fill="none" stroke="${line.color}" stroke-width="2" stroke-linejoin="round"><title>${line.label}</title></path>`).join('');
+  const unit=scale===1?'Mbps':'kbps';
+  $('legend').textContent=compare?'Video + audio comparison · Mbps':`${r.stream.type==='combined'?'Video + audio':r.stream.type} · ${unit}`;
+  $('chart').innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${compare?'Video, audio and combined bitrate':'Bitrate'} over time in ${unit}"><rect width="${width}" height="350" fill="#142022"/><g font-family="system-ui,sans-serif" font-size="12" fill="#91a69c">${grid}<text x="${left}" y="13">${unit}</text></g>${fill}${paths}<line id="cursor" x1="0" x2="0" y1="${top}" y2="${bottom}" stroke="#799b75" visibility="hidden"/><text id="tooltip" x="${right}" y="14" text-anchor="end" fill="#dbeecf" font-family="system-ui" font-size="10"></text></svg>`;
   const svg = $('chart').querySelector('svg');
   svg.addEventListener('pointermove', event => {
     const point = new DOMPoint(event.clientX,event.clientY).matrixTransform(svg.getScreenCTM().inverse());
@@ -211,17 +222,22 @@ function drawChart() {
     while(lo<hi){const mid=Math.floor((lo+hi)/2);if(points[mid].time<time)lo=mid+1;else hi=mid;}
     const p = lo>0 && Math.abs(points[lo-1].time-time)<Math.abs(points[lo].time-time) ? points[lo-1] : points[lo];
     const cursor = svg.querySelector('#cursor'); cursor.setAttribute('x1',x(p.time)); cursor.setAttribute('x2',x(p.time)); cursor.setAttribute('visibility','visible');
-    svg.querySelector('#tooltip').textContent = `${fmt(p.time,3)}s · ${fmt(p.bitrate_mbps*scale,3)} ${unit}`;
+    svg.querySelector('#tooltip').textContent = compare?`${fmt(p.time,3)}s · V ${fmt(p.video_bitrate_mbps,3)} · A ${fmt(p.audio_bitrate_mbps,3)} · Σ ${fmt(p.bitrate_mbps,3)} Mbps`:`${fmt(p.time,3)}s · ${fmt(p.bitrate_mbps*scale,3)} ${unit}`;
   });
   svg.addEventListener('pointerleave', () => {svg.querySelector('#cursor').setAttribute('visibility','hidden');svg.querySelector('#tooltip').textContent='';});
 }
 $('filled').addEventListener('change', drawChart);
+$('compare').addEventListener('change',drawChart);
 function download(content,type,extension) {
   const url=URL.createObjectURL(new Blob([content],{type})), a=document.createElement('a');
   a.href=url; a.download=`${result.filename}.${result.mode}.${extension}`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 $('export-json').addEventListener('click',()=>download(JSON.stringify(result,null,2),'application/json','json'));
-$('export-csv').addEventListener('click',()=>download('time_seconds,duration_seconds,bytes,packets,bitrate_mbps\n'+result.points.map(p=>[p.time,p.duration,p.bytes,p.packets,p.bitrate_mbps].join(',')).join('\n'),'text/csv','csv'));
+$('export-csv').addEventListener('click',()=>{
+  const extra=result.comparison?['video_bytes','audio_bytes','video_bitrate_mbps','audio_bitrate_mbps']:[];
+  const header=['time_seconds','duration_seconds','bytes','packets','bitrate_mbps',...extra].join(',');
+  download(header+'\n'+result.points.map(p=>[p.time,p.duration,p.bytes,p.packets,p.bitrate_mbps,...extra.map(key=>p[key])].join(',')).join('\n'),'text/csv','csv');
+});
 $('export-svg').addEventListener('click',()=>download(new XMLSerializer().serializeToString($('chart').querySelector('svg')),'image/svg+xml','svg'));
 
 window.addEventListener('resize', drawChart);

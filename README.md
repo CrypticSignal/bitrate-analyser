@@ -107,3 +107,7 @@ Segment bitrate is packaged file/range bits divided by manifest playback duratio
 ### Bandwidth estimates
 
 The planning panel takes the latest selected media peak / whole-stream average, or local segment peak / duration-weighted average. It multiplies the measured rate by additional overhead and headroom factors (editable assumptions: 5% and 20% initially). Changes update instantly without rescanning. Packet rates omit container/transport overhead; packaged segment rates already include container overhead, so add only the extra delivery overhead for that source. Results are estimates, not buffer/deadline guarantees. Export JSON records the selected source, measured baseline, percentages, and estimated Mbps.
+
+### Comparison overlays
+
+After combined video/audio analysis, enable **Compare video / audio** above the chart. Video, audio, and combined lines share exactly the same timestamp buckets, partial-interval policy, and Mbps axis. Components sum to the combined packet bytes; missing packets contribute zero. The tooltip shows all three rates. Each line preserves its own extrema during display downsampling. This uses the existing single packet scan; toggling the overlay does not run FFprobe again. JSON/CSV include per-track bytes and rates even with the overlay hidden; SVG reflects the visible chart. Comparison is unavailable for a single track or GOP mode.

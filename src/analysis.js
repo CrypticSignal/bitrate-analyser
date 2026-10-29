@@ -4,7 +4,7 @@ export function summarize(values) {
   for(const value of values){min=Math.min(min,value);max=Math.max(max,value);sum+=value;}
   return {min,mean:sum/values.length,max};
 }
-export function analyze(input,{mode='seconds',includePartial=false,video=true}={}) {
+export function analyze(input,{mode='seconds',includePartial=false,video=true,compare=false}={}) {
   const packets=input.filter(p=>Number.isFinite(p.time)&&Number.isFinite(p.size)&&p.size>=0).map(p=>({...p,duration:Math.max(0,finiteNumber(p.duration))})).sort((a,b)=>a.time-b.time);
   if(!packets.length)throw new Error('No valid packet timestamps found. Try a different stream or timestamp type.');
   let endTimestamp=packets[0].time;
@@ -43,7 +43,13 @@ export function analyze(input,{mode='seconds',includePartial=false,video=true}={
       const complete=second>=start-epsilon&&second+1<=end+epsilon;
       if(complete||includePartial){
         const size=group.reduce((sum,p)=>sum+p.size,0);
-        points.push({time:second,duration:1,bytes:size,packets:group.length,bitrate_mbps:size*8/1e6,complete});
+        const point={time:second,duration:1,bytes:size,packets:group.length,bitrate_mbps:size*8/1e6,complete};
+        if(compare){
+          let videoBytes=0,audioBytes=0;
+          for(const p of group){if(p.media_type==='video')videoBytes+=p.size;else if(p.media_type==='audio')audioBytes+=p.size;else throw new Error('Comparison packets must identify video or audio.');}
+          Object.assign(point,{video_bytes:videoBytes,audio_bytes:audioBytes,video_bitrate_mbps:videoBytes*8/1e6,audio_bitrate_mbps:audioBytes*8/1e6});
+        }
+        points.push(point);
         if(!group.length)missing++;
       }
       if(!complete)partial.push(second);
@@ -52,7 +58,7 @@ export function analyze(input,{mode='seconds',includePartial=false,video=true}={
   }
   const result={mode,points,bitrate_mbps:summarize(points.map(p=>p.bitrate_mbps)),total_packets:packets.length,
     total_bytes:packets.reduce((sum,p)=>sum+p.size,0),first_timestamp:packets[0].time,last_timestamp:packets.at(-1).time,end_timestamp:endTimestamp,
-    partial_seconds:partial,include_partial:includePartial,seconds_without_packets:missing};
+    comparison:compare&&mode==='seconds',partial_seconds:partial,include_partial:includePartial,seconds_without_packets:missing};
   result.duration_seconds=endTimestamp-packets[0].time;
   result.overall_bitrate_mbps=result.duration_seconds>0?result.total_bytes*8/result.duration_seconds/1e6:null;
   if(mode==='gop'){

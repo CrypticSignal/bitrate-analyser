@@ -54,10 +54,10 @@ self.onmessage=async({data:{file,mode,timestamp,stream,includePartial,pairing={}
     for(const track of selectedStreams){
       for(const p of byStream.get(track.index)||[]){
         if(!p.duration&&track.type==='video'&&track.fps>0)p.duration=1/track.fps;
-        packets.push(p);
+        p.media_type=track.type;packets.push(p);
       }
     }
-    const result=analyze(packets,{mode,includePartial,video:selected.type==='video'});
+    const result=analyze(packets,{mode,includePartial,video:selected.type==='video',compare:combined&&selectedStreams.length===2});
     result.selected_streams=selectedStreams;result.selection=stream;result.pairing=combined?pairing:null;
     result.filename=file.name;result.file_bytes=file.size;result.timestamp=timestamp.toUpperCase();
     result.engine={core:'@ffmpeg/core@0.12.10',ffprobe:version};result.metadata=info;result.stream=selected;result.rejected_packets=selectedStreams.reduce((sum,s)=>sum+(rejectedByStream.get(s.index)||0),0);
