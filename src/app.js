@@ -1,312 +1,600 @@
 'use strict';
-import {intervalBounds,intervalAtTime,intervalPath} from './chart-intervals.js';
-const $ = id => document.getElementById(id);
+import { intervalBounds, intervalAtTime, intervalPath } from './chart-intervals.js';
+const $ = (id) => document.getElementById(id);
 let result = null;
-let fileMetadata=null;
-let chartScrollFrame=null;
-function cancelChartScroll(){
-  if(chartScrollFrame!==null)cancelAnimationFrame(chartScrollFrame);
-  chartScrollFrame=null;
+let fileMetadata = null;
+let chartScrollFrame = null;
+function cancelChartScroll() {
+  if (chartScrollFrame !== null) cancelAnimationFrame(chartScrollFrame);
+  chartScrollFrame = null;
 }
-function scrollToCompletedChart(completedResult){
+function scrollToCompletedChart(completedResult) {
   cancelChartScroll();
   // Let result rendering and control/progress layout changes finish before measuring.
-  chartScrollFrame=requestAnimationFrame(()=>{
-    chartScrollFrame=requestAnimationFrame(()=>{
-      chartScrollFrame=null;
-      if(activeWorker||result!==completedResult)return;
-      const chart=document.querySelector('.chart-panel');
-      const immediate=window.matchMedia('(max-width: 720px), (pointer: coarse), (prefers-reduced-motion: reduce)').matches;
-      window.scrollTo({top:Math.max(0,window.scrollY+chart.getBoundingClientRect().top-12),behavior:immediate?'instant':'smooth'});
+  chartScrollFrame = requestAnimationFrame(() => {
+    chartScrollFrame = requestAnimationFrame(() => {
+      chartScrollFrame = null;
+      if (activeWorker || result !== completedResult) return;
+      const chart = document.querySelector('.chart-panel');
+      const immediate = window.matchMedia(
+        '(max-width: 720px), (pointer: coarse), (prefers-reduced-motion: reduce)',
+      ).matches;
+      window.scrollTo({
+        top: Math.max(0, window.scrollY + chart.getBoundingClientRect().top - 12),
+        behavior: immediate ? 'instant' : 'smooth',
+      });
     });
   });
 }
 
-function showProgress(data){
-  $('analysis-progress').hidden=false;
-  $('progress-label').textContent=data.message;
-  if(Number.isFinite(data.percent))$('progress-bar').value=data.percent;
+function showProgress(data) {
+  $('analysis-progress').hidden = false;
+  $('progress-label').textContent = data.message;
+  if (Number.isFinite(data.percent)) $('progress-bar').value = data.percent;
   else $('progress-bar').removeAttribute('value');
 }
-const fmt = (value, digits = 2) => Number(value).toLocaleString(undefined, {maximumFractionDigits: digits, minimumFractionDigits: Number.isInteger(Number(Number(value).toFixed(digits))) ? 0 : digits});
-function streamOptions(metadata){
-  return [new Option('Auto · first video, otherwise audio','auto'),
-    ...(!metadata||metadata.streams.some(s=>s.type==='video'&&!s.attached_picture)?[new Option('Combined · default video + audio','combined')]:[]),
-    ...(metadata?.streams||[]).map(s=>new Option(`#${s.index} · ${s.type} · ${s.codec}`,String(s.index)))];
+const fmt = (value, digits = 2) =>
+  Number(value).toLocaleString(undefined, {
+    maximumFractionDigits: digits,
+    minimumFractionDigits: Number.isInteger(Number(Number(value).toFixed(digits))) ? 0 : digits,
+  });
+function streamOptions(metadata) {
+  return [
+    new Option('Auto · first video, otherwise audio', 'auto'),
+    ...(!metadata || metadata.streams.some((s) => s.type === 'video' && !s.attached_picture)
+      ? [new Option('Combined · default video + audio', 'combined')]
+      : []),
+    ...(metadata?.streams || []).map(
+      (s) => new Option(`#${s.index} · ${s.type} · ${s.codec}`, String(s.index)),
+    ),
+  ];
 }
-function updateMode(){
-  const combined=$('stream').value==='combined';
-  $('pairing').hidden=!combined;
-  $('mode').querySelector('[value=gop]').disabled=combined;
-  if(combined)$('mode').value='seconds';
-  $('partial').disabled=$('mode').value==='gop';
-  $('partial-hint').textContent=$('mode').value==='gop'?'GOP boundaries are determined by keyframe packet timestamps.':'Bitrate = packet bits in each fixed 1-second interval ÷ 1 second. By default, only full intervals within the stream’s packet timeline are included.';
+function updateMode() {
+  const combined = $('stream').value === 'combined';
+  $('pairing').hidden = !combined;
+  $('mode').querySelector('[value=gop]').disabled = combined;
+  if (combined) $('mode').value = 'seconds';
+  $('partial').disabled = $('mode').value === 'gop';
+  $('partial-hint').textContent =
+    $('mode').value === 'gop'
+      ? 'GOP boundaries are determined by keyframe packet timestamps.'
+      : 'Bitrate = packet bits in each fixed 1-second interval ÷ 1 second. By default, only full intervals within the stream’s packet timeline are included.';
 }
-$('stream').addEventListener('change',updateMode);
-function populatePairing(metadata,reset=false){
-  for(const type of ['video','audio']){
-    const select=$(type+'-track'),previous=reset?'default':select.value;
-    select.replaceChildren(new Option(`Default / first ${type}`,'default'),
-      ...(metadata?.streams||[]).filter(s=>s.type===type&&!s.attached_picture).map(s=>new Option(`#${s.index} · ${s.codec}`,String(s.index))),
-      ...(type==='audio'?[new Option('No audio','none')]:[]));
-    select.value=[...select.options].some(o=>o.value===previous)?previous:'default';
+$('stream').addEventListener('change', updateMode);
+function populatePairing(metadata, reset = false) {
+  for (const type of ['video', 'audio']) {
+    const select = $(type + '-track'),
+      previous = reset ? 'default' : select.value;
+    select.replaceChildren(
+      new Option(`Default / first ${type}`, 'default'),
+      ...(metadata?.streams || [])
+        .filter((s) => s.type === type && !s.attached_picture)
+        .map((s) => new Option(`#${s.index} · ${s.codec}`, String(s.index))),
+      ...(type === 'audio' ? [new Option('No audio', 'none')] : []),
+    );
+    select.value = [...select.options].some((o) => o.value === previous) ? previous : 'default';
   }
 }
-function showFileInfo(metadata,file){
-  const unavailable='Not reported';
-  const rate=value=>value>0?`${fmt(value/1000)} kbps`:unavailable;
-  const seconds=value=>value!==null&&Number.isFinite(value)?`${fmt(value,3)} s`:unavailable;
-  const list=entries=>entries.flatMap(([key,value])=>[
-    Object.assign(document.createElement('dt'),{textContent:key}),
-    Object.assign(document.createElement('dd'),{textContent:value})]);
-  const container=metadata.container;
-  $('file-summary').replaceChildren(...list([
-    ['File',file.name],['Size',`${file.size.toLocaleString()} bytes (${fmt(file.size/1e6)} MB)`],
-    ['Container',container.long_name?`${container.long_name} (${container.name})`:container.name||unavailable],
-    ['Duration',metadata.duration>0?seconds(metadata.duration):unavailable],
-    ['Reported overall bitrate',rate(container.bit_rate)],['Container start time',seconds(container.start_time)]
-  ]));
-  $('file-streams').replaceChildren(...metadata.streams.map(stream=>{
-    const section=document.createElement('section'),heading=document.createElement('h4'),details=document.createElement('dl');
-    heading.textContent=`Stream #${stream.index} · ${stream.type}${stream.default?' · default':''}${stream.attached_picture?' · cover art':''}`;
-    const entries=[['Codec',stream.codec_long_name?`${stream.codec_long_name} (${stream.codec})`:stream.codec],
-      ['Codec tag',stream.codec_tag||unavailable],['Profile',stream.profile||unavailable],
-      ['Reported bitrate',rate(stream.bit_rate)],['Duration',seconds(stream.duration)]];
-    if(stream.type==='video')entries.push(['Resolution',stream.width&&stream.height?`${stream.width} × ${stream.height}`:unavailable],['Average frame rate',stream.fps>0?`${fmt(stream.fps,3)} fps`:unavailable]);
-    if(stream.type==='audio')entries.push(['Sample rate',Number(stream.sample_rate)>0?`${Number(stream.sample_rate).toLocaleString()} Hz`:unavailable],['Channels',stream.channels>0?String(stream.channels):unavailable]);
-    details.replaceChildren(...list(entries));section.append(heading,details);return section;
-  }));
-  $('file-info').hidden=false;
+function showFileInfo(metadata, file) {
+  const unavailable = 'Not reported';
+  const rate = (value) => (value > 0 ? `${fmt(value / 1000)} kbps` : unavailable);
+  const seconds = (value) =>
+    value !== null && Number.isFinite(value) ? `${fmt(value, 3)} s` : unavailable;
+  const list = (entries) =>
+    entries.flatMap(([key, value]) => [
+      Object.assign(document.createElement('dt'), { textContent: key }),
+      Object.assign(document.createElement('dd'), { textContent: value }),
+    ]);
+  const container = metadata.container;
+  $('file-summary').replaceChildren(
+    ...list([
+      ['File', file.name],
+      ['Size', `${file.size.toLocaleString()} bytes (${fmt(file.size / 1e6)} MB)`],
+      [
+        'Container',
+        container.long_name
+          ? `${container.long_name} (${container.name})`
+          : container.name || unavailable,
+      ],
+      ['Duration', metadata.duration > 0 ? seconds(metadata.duration) : unavailable],
+      ['Reported overall bitrate', rate(container.bit_rate)],
+      ['Container start time', seconds(container.start_time)],
+    ]),
+  );
+  $('file-streams').replaceChildren(
+    ...metadata.streams.map((stream) => {
+      const section = document.createElement('section'),
+        heading = document.createElement('h4'),
+        details = document.createElement('dl');
+      heading.textContent = `Stream #${stream.index} · ${stream.type}${stream.default ? ' · default' : ''}${stream.attached_picture ? ' · cover art' : ''}`;
+      const entries = [
+        [
+          'Codec',
+          stream.codec_long_name ? `${stream.codec_long_name} (${stream.codec})` : stream.codec,
+        ],
+        ['Codec tag', stream.codec_tag || unavailable],
+        ['Profile', stream.profile || unavailable],
+        ['Reported bitrate', rate(stream.bit_rate)],
+        ['Duration', seconds(stream.duration)],
+      ];
+      if (stream.type === 'video')
+        entries.push(
+          [
+            'Resolution',
+            stream.width && stream.height ? `${stream.width} × ${stream.height}` : unavailable,
+          ],
+          ['Average frame rate', stream.fps > 0 ? `${fmt(stream.fps, 3)} fps` : unavailable],
+        );
+      if (stream.type === 'audio')
+        entries.push(
+          [
+            'Sample rate',
+            Number(stream.sample_rate) > 0
+              ? `${Number(stream.sample_rate).toLocaleString()} Hz`
+              : unavailable,
+          ],
+          ['Channels', stream.channels > 0 ? String(stream.channels) : unavailable],
+        );
+      details.replaceChildren(...list(entries));
+      section.append(heading, details);
+      return section;
+    }),
+  );
+  $('file-info').hidden = false;
 }
 function sourceChanged() {
   cancelChartScroll();
-  if(activeWorker)fail('Source changed. Start a new analysis.');
-  fileMetadata=null;$('analysis-progress').hidden=true;
-  populatePairing(null,true);
-  $('file-info').open=true;
-  $('file-info').hidden=true;$('file-summary').replaceChildren();$('file-streams').replaceChildren();
+  if (activeWorker) fail('Source changed. Start a new analysis.');
+  fileMetadata = null;
+  $('analysis-progress').hidden = true;
+  populatePairing(null, true);
+  $('file-info').open = true;
+  $('file-info').hidden = true;
+  $('file-summary').replaceChildren();
+  $('file-streams').replaceChildren();
   const file = $('file').files[0];
   $('file-name').textContent = file ? file.name : 'Drop a media file here';
-  $('file-size').textContent = file ? `${fmt(file.size / 1024 / 1024, 1)} MB · ready to inspect` : 'or click to browse';
+  $('file-size').textContent = file
+    ? `${fmt(file.size / 1024 / 1024, 1)} MB · ready to inspect`
+    : 'or click to browse';
   $('stream').replaceChildren(...streamOptions());
   updateMode();
-  if(!file)return;
-  $('analyze').disabled=true;$('stream').disabled=true;$('cancel').hidden=false;
-  document.querySelector('.results').dataset.state='reading';$('message').className='';
-  $('message').textContent='Reading stream information…';
-  showProgress({message:'Reading stream information…'});
-  try{
-    const worker=new Worker(new URL('./probe-worker.js',import.meta.url),{type:'module'});
-    activeWorker=worker;
-    worker.onmessage=({data})=>{
-      if(activeWorker!==worker)return;
-      if(data.type==='progress'){showProgress(data);$('message').textContent=data.message;}
-      else if(data.type==='streams'){
-        fileMetadata=data.metadata;
-        showFileInfo(data.metadata,file);populatePairing(data.metadata,true);
+  if (!file) return;
+  $('analyze').disabled = true;
+  $('stream').disabled = true;
+  $('cancel').hidden = false;
+  document.querySelector('.results').dataset.state = 'reading';
+  $('message').className = '';
+  $('message').textContent = 'Reading stream information…';
+  showProgress({ message: 'Reading stream information…' });
+  try {
+    const worker = new Worker(new URL('./probe-worker.js', import.meta.url), { type: 'module' });
+    activeWorker = worker;
+    worker.onmessage = ({ data }) => {
+      if (activeWorker !== worker) return;
+      if (data.type === 'progress') {
+        showProgress(data);
+        $('message').textContent = data.message;
+      } else if (data.type === 'streams') {
+        fileMetadata = data.metadata;
+        showFileInfo(data.metadata, file);
+        populatePairing(data.metadata, true);
         $('stream').replaceChildren(...streamOptions(data.metadata));
-        $('stream').value='auto';updateMode();finish();
-        document.querySelector('.results').dataset.state='ready';$('message').textContent='Choose a stream, then analyze the media.';
-      }else if(data.type==='error')fail(data.message);
+        $('stream').value = 'auto';
+        updateMode();
+        finish();
+        document.querySelector('.results').dataset.state = 'ready';
+        $('message').textContent = 'Choose a stream, then analyze the media.';
+      } else if (data.type === 'error') fail(data.message);
     };
-    worker.onerror=()=>{if(activeWorker===worker)fail('Could not read streams. Check the media file and WASM assets.');};
-    worker.postMessage({file,metadataOnly:true});
-    activeTimer=setTimeout(()=>fail('Reading streams exceeded five minutes. Try a different file.'),300000);
-  }catch(error){fail(error.message);}
+    worker.onerror = () => {
+      if (activeWorker === worker)
+        fail('Could not read streams. Check the media file and WASM assets.');
+    };
+    worker.postMessage({ file, metadataOnly: true });
+    activeTimer = setTimeout(
+      () => fail('Reading streams exceeded five minutes. Try a different file.'),
+      300000,
+    );
+  } catch (error) {
+    fail(error.message);
+  }
 }
 $('file').addEventListener('change', sourceChanged);
-['dragover', 'dragleave', 'drop'].forEach(type => $('dropzone').addEventListener(type, event => {
-  event.preventDefault();
-  $('dropzone').classList.toggle('dragover', type === 'dragover');
-  if (type === 'drop' && event.dataTransfer.files.length) {
-    const transfer = new DataTransfer(); transfer.items.add(event.dataTransfer.files[0]);
-    $('file').files = transfer.files; sourceChanged();
-  }
-}));
-$('mode').addEventListener('change',updateMode);
+['dragover', 'dragleave', 'drop'].forEach((type) =>
+  $('dropzone').addEventListener(type, (event) => {
+    event.preventDefault();
+    $('dropzone').classList.toggle('dragover', type === 'dragover');
+    if (type === 'drop' && event.dataTransfer.files.length) {
+      const transfer = new DataTransfer();
+      transfer.items.add(event.dataTransfer.files[0]);
+      $('file').files = transfer.files;
+      sourceChanged();
+    }
+  }),
+);
+$('mode').addEventListener('change', updateMode);
 let activeWorker = null;
 let activeTimer = null;
 function finish() {
-  if(activeWorker)activeWorker.terminate();
-  activeWorker=null;clearTimeout(activeTimer);
-  $('analyze').disabled=false;$('analyze').innerHTML='Analyze media <span>↗</span>';
-  $('cancel').hidden=true;$('stream').disabled=false;$('analysis-progress').hidden=true;
+  if (activeWorker) activeWorker.terminate();
+  activeWorker = null;
+  clearTimeout(activeTimer);
+  $('analyze').disabled = false;
+  $('analyze').innerHTML = 'Analyze media <span>↗</span>';
+  $('cancel').hidden = true;
+  $('stream').disabled = false;
+  $('analysis-progress').hidden = true;
 }
 function fail(message) {
-  $('message').className='error';$('message').textContent=message;
-  document.querySelector('.results').dataset.state='error';finish();
+  $('message').className = 'error';
+  $('message').textContent = message;
+  document.querySelector('.results').dataset.state = 'error';
+  finish();
 }
-$('cancel').addEventListener('click',()=>fail('Analysis canceled. Your file has not left your device.'));
-$('analysis-form').addEventListener('submit', event => {
+$('cancel').addEventListener('click', () =>
+  fail('Analysis canceled. Your file has not left your device.'),
+);
+$('analysis-form').addEventListener('submit', (event) => {
   event.preventDefault();
   cancelChartScroll();
-  const file=$('file').files[0];
-  if(!file)return;
-  if(!('Worker' in window)||!('WebAssembly' in window)){fail('This browser needs Web Workers and WebAssembly support.');return;}
-  $('analyze').disabled=true;$('analyze').textContent='Analyzing locally…';$('cancel').hidden=false;
-  showProgress({message:'Starting local analysis…'});
-  $('message').className='';$('message').textContent='Starting local analysis…';document.querySelector('.results').dataset.state='analysing';
+  const file = $('file').files[0];
+  if (!file) return;
+  if (!('Worker' in window) || !('WebAssembly' in window)) {
+    fail('This browser needs Web Workers and WebAssembly support.');
+    return;
+  }
+  $('analyze').disabled = true;
+  $('analyze').textContent = 'Analyzing locally…';
+  $('cancel').hidden = false;
+  showProgress({ message: 'Starting local analysis…' });
+  $('message').className = '';
+  $('message').textContent = 'Starting local analysis…';
+  document.querySelector('.results').dataset.state = 'analysing';
   try {
-    const worker=new Worker(new URL('./probe-worker.js',import.meta.url),{type:'module'});
-    const selection=$('stream').value;
-    activeWorker=worker;
-    activeWorker.onmessage=({data})=>{
-      if(activeWorker!==worker)return;
-      if(data.type==='progress'){showProgress(data);$('message').textContent=data.message;}
-      else if(data.type==='metadata'){
+    const worker = new Worker(new URL('./probe-worker.js', import.meta.url), { type: 'module' });
+    const selection = $('stream').value;
+    activeWorker = worker;
+    activeWorker.onmessage = ({ data }) => {
+      if (activeWorker !== worker) return;
+      if (data.type === 'progress') {
+        showProgress(data);
+        $('message').textContent = data.message;
+      } else if (data.type === 'metadata') {
         populatePairing(data.metadata);
         $('stream').replaceChildren(...streamOptions(data.metadata));
-        $('stream').value=selection;
+        $('stream').value = selection;
         updateMode();
-      }else if(data.type==='result'){
-        result=data.result;render();finish();
-        showProgress({percent:100,message:'Analysis complete · 100%'});
+      } else if (data.type === 'result') {
+        result = data.result;
+        render();
+        finish();
+        showProgress({ percent: 100, message: 'Analysis complete · 100%' });
         scrollToCompletedChart(result);
-      }
-      else if(data.type==='error')fail(data.message);
+      } else if (data.type === 'error') fail(data.message);
     };
-    activeWorker.onerror=()=>{if(activeWorker===worker)fail('The browser could not run FFprobe. Check that the WASM assets are served correctly, or try a smaller file or another browser.');};
-    activeWorker.postMessage({file,mode:$('mode').value,timestamp:document.querySelector('[name=timestamp]:checked').value,stream:$('stream').value,timeline:{start:fileMetadata?.container.start_time,duration:fileMetadata?.duration},includePartial:$('partial').checked,pairing:{video:$('video-track').value,audio:$('audio-track').value}});
-    activeTimer=setTimeout(()=>fail('Analysis exceeded five minutes. Try a shorter clip or a faster device.'),300000);
-  }catch(error){fail(error.message);}
+    activeWorker.onerror = () => {
+      if (activeWorker === worker)
+        fail(
+          'The browser could not run FFprobe. Check that the WASM assets are served correctly, or try a smaller file or another browser.',
+        );
+    };
+    activeWorker.postMessage({
+      file,
+      mode: $('mode').value,
+      timestamp: document.querySelector('[name=timestamp]:checked').value,
+      stream: $('stream').value,
+      timeline: { start: fileMetadata?.container.start_time, duration: fileMetadata?.duration },
+      includePartial: $('partial').checked,
+      pairing: { video: $('video-track').value, audio: $('audio-track').value },
+    });
+    activeTimer = setTimeout(
+      () => fail('Analysis exceeded five minutes. Try a shorter clip or a faster device.'),
+      300000,
+    );
+  } catch (error) {
+    fail(error.message);
+  }
 });
 function metric(id, value, unit) {
-  $(id).replaceChildren(document.createTextNode(value===null?'Unavailable':fmt(value,3)), Object.assign(document.createElement('em'), {textContent: unit}));
+  $(id).replaceChildren(
+    document.createTextNode(value === null ? 'Unavailable' : fmt(value, 3)),
+    Object.assign(document.createElement('em'), { textContent: unit }),
+  );
 }
 function render() {
-  const r = result, audio = r.stream.type === 'audio', scale = audio ? 1000 : 1, unit = audio ? 'kbps' : 'Mbps';
+  const r = result,
+    audio = r.stream.type === 'audio',
+    scale = audio ? 1000 : 1,
+    unit = audio ? 'kbps' : 'Mbps';
   document.querySelector('.results').dataset.state = 'complete';
-  ['average', 'peak', 'minimum'].forEach((id, i) => metric(id, r.bitrate_mbps[['mean','max','min'][i]] * scale, unit));
-  for(const [id,key] of [['peak','max'],['minimum','min']]){
-    const range=r.bitrate_ranges[key];
-    $(id+'-note').textContent=`${fmt(range.start,3)}–${fmt(range.end,3)} s${range.partial?' (partial second)':''}${range.count>1?` · first of ${range.count.toLocaleString()} equal values`:''}`;
+  ['average', 'peak', 'minimum'].forEach((id, i) =>
+    metric(id, r.bitrate_mbps[['mean', 'max', 'min'][i]] * scale, unit),
+  );
+  for (const [id, key] of [
+    ['peak', 'max'],
+    ['minimum', 'min'],
+  ]) {
+    const range = r.bitrate_ranges[key];
+    $(id + '-note').textContent =
+      `${fmt(range.start, 3)}–${fmt(range.end, 3)} s${range.partial ? ' (partial second)' : ''}${range.count > 1 ? ` · first of ${range.count.toLocaleString()} equal values` : ''}`;
   }
-  metric('whole-average',r.overall_bitrate_mbps===null?null:r.overall_bitrate_mbps*scale,unit);
-  const tracks=(r.selected_streams||[r.stream]).map(s=>`#${s.index} · ${s.type} / ${s.codec}`).join(' + ');
-  $('legend').textContent = `${r.stream.type==='combined'?'Video + audio':r.stream.type} · ${unit}`;
+  metric(
+    'whole-average',
+    r.overall_bitrate_mbps === null ? null : r.overall_bitrate_mbps * scale,
+    unit,
+  );
+  const tracks = (r.selected_streams || [r.stream])
+    .map((s) => `#${s.index} · ${s.type} / ${s.codec}`)
+    .join(' + ');
+  $('legend').textContent =
+    `${r.stream.type === 'combined' ? 'Video + audio' : r.stream.type} · ${unit}`;
   $('chart-title').textContent = r.mode === 'gop' ? 'GOP bitrate over time' : 'Bitrate over time';
-  $('average-note').textContent = `${r.mode === 'gop' ? 'Time-weighted across' : 'Across'} ${r.points.length.toLocaleString()} ${r.mode === 'gop' ? 'GOPs' : 'second buckets'}`;
-  $('detail-text').textContent = `${r.total_packets.toLocaleString()} valid packets · ${fmt(r.total_bytes / 1e6)} MB of stream data · ${r.rejected_packets} rejected packets.`;
-  const detail = {'Timestamp basis': r.timestamp, 'Selected streams': tracks, 'Observed timestamp range': `${fmt(r.first_timestamp, 3)} – ${fmt(r.last_timestamp, 3)} s`};
-  detail['Analysis range'] = `${fmt(r.analysis_range.start,3)} – ${fmt(r.analysis_range.end,3)} s`;
+  $('average-note').textContent =
+    `${r.mode === 'gop' ? 'Time-weighted across' : 'Across'} ${r.points.length.toLocaleString()} ${r.mode === 'gop' ? 'GOPs' : 'second buckets'}`;
+  $('detail-text').textContent =
+    `${r.total_packets.toLocaleString()} valid packets · ${fmt(r.total_bytes / 1e6)} MB of stream data · ${r.rejected_packets} rejected packets.`;
+  const detail = {
+    'Timestamp basis': r.timestamp,
+    'Selected streams': tracks,
+    'Observed timestamp range': `${fmt(r.first_timestamp, 3)} – ${fmt(r.last_timestamp, 3)} s`,
+  };
+  detail['Analysis range'] =
+    `${fmt(r.analysis_range.start, 3)} – ${fmt(r.analysis_range.end, 3)} s`;
   if (r.engine) detail['Local engine'] = `FFprobe ${r.engine.ffprobe} · WASM`;
   if (r.stream.fps) detail['Average frame rate'] = `${fmt(r.stream.fps, 3)} FPS`;
   if (r.mode === 'seconds') detail['Seconds without packets'] = r.seconds_without_packets;
-  $('details').replaceChildren(...Object.entries(detail).flatMap(([key,value]) => [Object.assign(document.createElement('dt'), {textContent:key}), Object.assign(document.createElement('dd'), {textContent:value})]));
+  $('details').replaceChildren(
+    ...Object.entries(detail).flatMap(([key, value]) => [
+      Object.assign(document.createElement('dt'), { textContent: key }),
+      Object.assign(document.createElement('dd'), { textContent: value }),
+    ]),
+  );
   const selected = r.selection || String(r.stream.index);
   $('stream').replaceChildren(...streamOptions(r.metadata));
   $('stream').value = selected;
   updateMode();
   $('message').className = '';
-  const timestamp=value=>value.toFixed(3).replace(/\.000$/, '').replace(/^-0$/, '0');
-  const partialRanges=r.partial_seconds.map(second=>`${timestamp(Math.max(second,r.first_timestamp))}-${timestamp(Math.min(second+1,r.end_timestamp))} s`).join(', ');
-  $('message').textContent = r.mode === 'seconds' && r.partial_seconds.length ? `${r.partial_seconds.length} partial start/end interval${r.partial_seconds.length===1?'':'s'} ${r.include_partial ? 'included as raw bits per one-second bucket' : 'excluded from the chart and statistics'}: ${partialRanges}.${r.include_partial?' Edge buckets may be lower.':''}` : '';
-  $('chart-caption').textContent = `${r.timestamp} timestamps · ${r.points.length.toLocaleString()} intervals`;
+  const timestamp = (value) =>
+    value
+      .toFixed(3)
+      .replace(/\.000$/, '')
+      .replace(/^-0$/, '0');
+  const partialRanges = r.partial_seconds
+    .map(
+      (second) =>
+        `${timestamp(Math.max(second, r.first_timestamp))}-${timestamp(Math.min(second + 1, r.end_timestamp))} s`,
+    )
+    .join(', ');
+  $('message').textContent =
+    r.mode === 'seconds' && r.partial_seconds.length
+      ? `${r.partial_seconds.length} partial start/end interval${r.partial_seconds.length === 1 ? '' : 's'} ${r.include_partial ? 'included as raw bits per one-second bucket' : 'excluded from the chart and statistics'}: ${partialRanges}.${r.include_partial ? ' Edge buckets may be lower.' : ''}`
+      : '';
+  $('chart-caption').textContent =
+    `${r.timestamp} timestamps · ${r.points.length.toLocaleString()} intervals`;
   $('gop-panel').hidden = r.mode !== 'gop';
   if (r.gop) {
-    $('gop-summary').textContent = `${r.gop.count} GOPs · duration ${fmt(r.gop.duration_seconds.min, 3)}–${fmt(r.gop.duration_seconds.max, 3)}s · average ${fmt(r.gop.packets.mean, 1)} packets/GOP`;
-    $('gop-body').replaceChildren(...r.points.slice(0, 500).map((p,i) => {
-      const tr = document.createElement('tr');
-      [i+1, fmt(p.time,3), fmt(p.duration,3), p.packets, fmt(p.bitrate_mbps,3)].forEach(value => tr.append(Object.assign(document.createElement('td'), {textContent:value})));
-      return tr;
-    }));
-    $('gop-note').textContent = r.points.length > 500 ? 'Showing the first 500 GOPs. Exports include all GOPs.' : 'Exports include all GOPs.';
+    $('gop-summary').textContent =
+      `${r.gop.count} GOPs · duration ${fmt(r.gop.duration_seconds.min, 3)}–${fmt(r.gop.duration_seconds.max, 3)}s · average ${fmt(r.gop.packets.mean, 1)} packets/GOP`;
+    $('gop-body').replaceChildren(
+      ...r.points.slice(0, 500).map((p, i) => {
+        const tr = document.createElement('tr');
+        [i + 1, fmt(p.time, 3), fmt(p.duration, 3), p.packets, fmt(p.bitrate_mbps, 3)].forEach(
+          (value) => tr.append(Object.assign(document.createElement('td'), { textContent: value })),
+        );
+        return tr;
+      }),
+    );
+    $('gop-note').textContent =
+      r.points.length > 500
+        ? 'Showing the first 500 GOPs. Exports include all GOPs.'
+        : 'Exports include all GOPs.';
   }
-  ['export-svg','export-json','export-csv'].forEach(id => $(id).disabled = false);
-  $('compare').disabled=!(r.comparison||r.comparison_data);
-  if($('compare').disabled)$('compare').checked=false;
+  ['export-svg', 'export-json', 'export-csv'].forEach((id) => ($(id).disabled = false));
+  $('compare').disabled = !(r.comparison || r.comparison_data);
+  if ($('compare').disabled) $('compare').checked = false;
   drawChart();
-  window.dispatchEvent(new CustomEvent('bitrate-result',{detail:r}));
+  window.dispatchEvent(new CustomEvent('bitrate-result', { detail: r }));
 }
 function drawChart() {
   if (!result) return;
-  const r=result,compare=$('compare').checked&&!!(r.comparison||r.comparison_data);
-  const chartData=compare?(r.comparison_data||r):r;
-  const points=chartData.points,scale=!compare&&r.stream.type==='audio'?1000:1;
-  const comparisonTracks=(r.comparison_data||r).selected_streams||[];
-  $('compare-note').textContent=compare?`Comparing ${comparisonTracks.map(s=>`#${s.index} ${s.type} (${s.codec})`).join(' + ')}. Cards and analysis details describe the selected stream(s); the overlay uses the combined timeline.`:
-    $('compare').disabled?(r.mode==='gop'?'Comparison requires per-second analysis.':r.comparison_unavailable||'Comparison requires both a video and an audio track.'):'Compare the selected track with its default video/audio counterpart; no additional scan is needed.';
-  const width = Math.max(320, $('chart').clientWidth - 16), height = 350, left = 55, right = width - 15, top = 22, bottom = 300;
-  const start=intervalBounds(points[0],chartData).start,end=Math.max(start+1e-6,intervalBounds(points.at(-1),chartData).end);
+  const r = result,
+    compare = $('compare').checked && !!(r.comparison || r.comparison_data);
+  const chartData = compare ? r.comparison_data || r : r;
+  const points = chartData.points,
+    scale = !compare && r.stream.type === 'audio' ? 1000 : 1;
+  const comparisonTracks = (r.comparison_data || r).selected_streams || [];
+  $('compare-note').textContent = compare
+    ? `Comparing ${comparisonTracks.map((s) => `#${s.index} ${s.type} (${s.codec})`).join(' + ')}. Cards and analysis details describe the selected stream(s); the overlay uses the combined timeline.`
+    : $('compare').disabled
+      ? r.mode === 'gop'
+        ? 'Comparison requires per-second analysis.'
+        : r.comparison_unavailable || 'Comparison requires both a video and an audio track.'
+      : 'Compare the selected track with its default video/audio counterpart; no additional scan is needed.';
+  const width = Math.max(320, $('chart').clientWidth - 16),
+    height = 350,
+    left = 55,
+    right = width - 15,
+    top = 22,
+    bottom = 300;
+  const start = intervalBounds(points[0], chartData).start,
+    end = Math.max(start + 1e-6, intervalBounds(points.at(-1), chartData).end);
   const max = Math.max(...[chartData.bitrate_mbps.max * scale * 1.12, 0.001]);
-  const x = t => left + (t-start)/(end-start)*(right-left), y = b => bottom-b*scale/max*(bottom-top);
-  $('comparison-key').hidden=!compare;
-  $('chart-caption').textContent=`${r.timestamp} timestamps · ${points.length.toLocaleString()} intervals · horizontal segments span intervals; dots mark interval ends${r.include_partial?' · partial-second rates still use a 1 s divisor':''}${compare?' · combined comparison timeline':''}`;
-  const series=compare?[{key:'bitrate_mbps',id:'combined',label:'Combined',color:'#baf28a'},
-    {key:'video_bitrate_mbps',id:'video',label:'Video',color:'#7dcfff'},
-    {key:'audio_bitrate_mbps',id:'audio',label:'Audio',color:'#f6b970'}]:[{key:'bitrate_mbps',id:'selected',label:'Selected stream',color:'#baf28a'}];
+  const x = (t) => left + ((t - start) / (end - start)) * (right - left),
+    y = (b) => bottom - ((b * scale) / max) * (bottom - top);
+  $('comparison-key').hidden = !compare;
+  $('chart-caption').textContent =
+    `${r.timestamp} timestamps · ${points.length.toLocaleString()} intervals · horizontal segments span intervals; dots mark interval ends${r.include_partial ? ' · partial-second rates still use a 1 s divisor' : ''}${compare ? ' · combined comparison timeline' : ''}`;
+  const series = compare
+    ? [
+        { key: 'bitrate_mbps', id: 'combined', label: 'Combined', color: '#baf28a' },
+        { key: 'video_bitrate_mbps', id: 'video', label: 'Video', color: '#7dcfff' },
+        { key: 'audio_bitrate_mbps', id: 'audio', label: 'Audio', color: '#f6b970' },
+      ]
+    : [{ key: 'bitrate_mbps', id: 'selected', label: 'Selected stream', color: '#baf28a' }];
   // Preserve extrema independently for every line so small audio peaks survive.
-  const sample=key=>{
-    const sampled=[],stride=Math.max(1,Math.ceil(points.length/900));
-    for(let i=0;i<points.length;i+=stride){
-      const group=points.slice(i,i+stride),low=group.reduce((a,b)=>a[key]<b[key]?a:b),high=group.reduce((a,b)=>a[key]>b[key]?a:b);
-      sampled.push(...[...new Set([group[0],low,high,group.at(-1)])].sort((a,b)=>a.time-b.time));
+  const sample = (key) => {
+    const sampled = [],
+      stride = Math.max(1, Math.ceil(points.length / 900));
+    for (let i = 0; i < points.length; i += stride) {
+      const group = points.slice(i, i + stride),
+        low = group.reduce((a, b) => (a[key] < b[key] ? a : b)),
+        high = group.reduce((a, b) => (a[key] > b[key] ? a : b));
+      sampled.push(
+        ...[...new Set([group[0], low, high, group.at(-1)])].sort((a, b) => a.time - b.time),
+      );
     }
     return sampled;
   };
-  const lines=series.map(s=>({...s,sampled:sample(s.key)}));
+  const lines = series.map((s) => ({ ...s, sampled: sample(s.key) }));
   let grid = '';
-  for(let i=0;i<=4;i++) {
-    const yy=top+(bottom-top)*i/4, value=max*(1-i/4);
-    grid += `<line x1="${left}" y1="${yy}" x2="${right}" y2="${yy}" stroke="#2b3c3b"/><text x="${left-13}" y="${yy+4}" text-anchor="end">${fmt(value,3)}</text>`;
-    const t=start+(end-start)*i/4, xx=x(t);
-    grid += `<text x="${xx}" y="${bottom+26}" text-anchor="middle">${fmt(t,1)}s</text>`;
+  for (let i = 0; i <= 4; i++) {
+    const yy = top + ((bottom - top) * i) / 4,
+      value = max * (1 - i / 4);
+    grid += `<line x1="${left}" y1="${yy}" x2="${right}" y2="${yy}" stroke="#2b3c3b"/><text x="${left - 13}" y="${yy + 4}" text-anchor="end">${fmt(value, 3)}</text>`;
+    const t = start + ((end - start) * i) / 4,
+      xx = x(t);
+    grid += `<text x="${xx}" y="${bottom + 26}" text-anchor="middle">${fmt(t, 1)}s</text>`;
   }
-  const makePath=line=>intervalPath(line.sampled,line.key,chartData,t=>x(t).toFixed(2),rate=>y(rate).toFixed(2));
-  const primary=lines[0],path=makePath(primary),sampled=primary.sampled;
-  const fill=$('filled').checked?sampled.map(p=>{
-    const {start,end}=intervalBounds(p,chartData);
-    return `<path data-interval-fill d="M${x(start)},${bottom} V${y(p[primary.key])} H${x(end)} V${bottom} Z" fill="#baf28a" opacity=".12"/>`;
-  }).join(''):'';
-  const paths=lines.map(line=>`<path data-series="${line.id}" d="${makePath(line)}" fill="none" stroke="${line.color}" stroke-width="2" stroke-linejoin="round"><title>${line.label}</title></path>`).join('');
-  const markers=lines.map(line=>line.sampled.map(p=>`<circle data-interval-start="${p.time}" cx="${x(intervalBounds(p,chartData).end).toFixed(2)}" cy="${y(p[line.key]).toFixed(2)}" r="2" fill="${line.color}"/>`).join('')).join('');
-  const unit=scale===1?'Mbps':'kbps';
-  $('legend').textContent=compare?'Video + audio comparison · Mbps':`${r.stream.type==='combined'?'Video + audio':r.stream.type} · ${unit}`;
-  $('chart').innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${compare?'Video, audio and combined bitrate':'Bitrate'} over time in ${unit}"><rect width="${width}" height="350" fill="#142022"/><g font-family="system-ui,sans-serif" font-size="12" fill="#91a69c">${grid}<text x="${left}" y="13">${unit}</text></g><rect id="interval-highlight" y="${top}" height="${bottom-top}" fill="#baf28a" opacity=".22" visibility="hidden"/>${fill}${paths}${markers}</svg><div id="tooltip" role="tooltip" hidden><strong id="tooltip-range"></strong><div id="tooltip-rates"></div></div>`;
+  const makePath = (line) =>
+    intervalPath(
+      line.sampled,
+      line.key,
+      chartData,
+      (t) => x(t).toFixed(2),
+      (rate) => y(rate).toFixed(2),
+    );
+  const primary = lines[0],
+    path = makePath(primary),
+    sampled = primary.sampled;
+  const fill = $('filled').checked
+    ? sampled
+        .map((p) => {
+          const { start, end } = intervalBounds(p, chartData);
+          return `<path data-interval-fill d="M${x(start)},${bottom} V${y(p[primary.key])} H${x(end)} V${bottom} Z" fill="#baf28a" opacity=".12"/>`;
+        })
+        .join('')
+    : '';
+  const paths = lines
+    .map(
+      (line) =>
+        `<path data-series="${line.id}" d="${makePath(line)}" fill="none" stroke="${line.color}" stroke-width="2" stroke-linejoin="round"><title>${line.label}</title></path>`,
+    )
+    .join('');
+  const markers = lines
+    .map((line) =>
+      line.sampled
+        .map(
+          (p) =>
+            `<circle data-interval-start="${p.time}" cx="${x(intervalBounds(p, chartData).end).toFixed(2)}" cy="${y(p[line.key]).toFixed(2)}" r="2" fill="${line.color}"/>`,
+        )
+        .join(''),
+    )
+    .join('');
+  const unit = scale === 1 ? 'Mbps' : 'kbps';
+  $('legend').textContent = compare
+    ? 'Video + audio comparison · Mbps'
+    : `${r.stream.type === 'combined' ? 'Video + audio' : r.stream.type} · ${unit}`;
+  $('chart').innerHTML =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${compare ? 'Video, audio and combined bitrate' : 'Bitrate'} over time in ${unit}"><rect width="${width}" height="350" fill="#142022"/><g font-family="system-ui,sans-serif" font-size="12" fill="#91a69c">${grid}<text x="${left}" y="13">${unit}</text></g><rect id="interval-highlight" y="${top}" height="${bottom - top}" fill="#baf28a" opacity=".22" visibility="hidden"/>${fill}${paths}${markers}</svg><div id="tooltip" role="tooltip" hidden><strong id="tooltip-range"></strong><div id="tooltip-rates"></div></div>`;
   const svg = $('chart').querySelector('svg');
-  const showInterval=event=>{
-    const point = new DOMPoint(event.clientX,event.clientY).matrixTransform(svg.getScreenCTM().inverse());
-    const time = start+(point.x-left)/(right-left)*(end-start);
-    const marker=event.target.closest('[data-interval-start]');
-    const p=intervalAtTime(points,marker?Number(marker.dataset.intervalStart):time),bounds=intervalBounds(p,chartData);
-    const highlight=svg.querySelector('#interval-highlight');
-    highlight.setAttribute('x',x(bounds.start));highlight.setAttribute('width',Math.max(0,x(bounds.end)-x(bounds.start)));highlight.setAttribute('visibility','visible');
-    $('tooltip-range').textContent=`${fmt(bounds.start,3)}–${fmt(bounds.end,3)} s${p.complete===false?' (partial second)':''}`;
-    $('tooltip-rates').textContent=compare?`V ${fmt(p.video_bitrate_mbps,3)} · A ${fmt(p.audio_bitrate_mbps,3)} · Σ ${fmt(p.bitrate_mbps,3)} Mbps`:`${fmt(p.bitrate_mbps*scale,3)} ${unit}`;
-    const tooltip=$('tooltip'),chart=$('chart'),rect=chart.getBoundingClientRect();
-    tooltip.hidden=false;
-    const px=event.clientX-rect.left,py=event.clientY-rect.top;
-    const w=tooltip.offsetWidth,h=tooltip.offsetHeight;
-    const preferredX=px+14+w<=rect.width-8?px+14:px-w-14;
-    const preferredY=py-h-18>=8?py-h-18:py+18;
-    tooltip.style.left=`${Math.max(8,Math.min(rect.width-w-8,preferredX))}px`;
-    tooltip.style.top=`${Math.max(8,Math.min(rect.height-h-8,preferredY))}px`;
+  const showInterval = (event) => {
+    const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(
+      svg.getScreenCTM().inverse(),
+    );
+    const time = start + ((point.x - left) / (right - left)) * (end - start);
+    const marker = event.target.closest('[data-interval-start]');
+    const p = intervalAtTime(points, marker ? Number(marker.dataset.intervalStart) : time),
+      bounds = intervalBounds(p, chartData);
+    const highlight = svg.querySelector('#interval-highlight');
+    highlight.setAttribute('x', x(bounds.start));
+    highlight.setAttribute('width', Math.max(0, x(bounds.end) - x(bounds.start)));
+    highlight.setAttribute('visibility', 'visible');
+    $('tooltip-range').textContent =
+      `${fmt(bounds.start, 3)}–${fmt(bounds.end, 3)} s${p.complete === false ? ' (partial second)' : ''}`;
+    $('tooltip-rates').textContent = compare
+      ? `V ${fmt(p.video_bitrate_mbps, 3)} · A ${fmt(p.audio_bitrate_mbps, 3)} · Σ ${fmt(p.bitrate_mbps, 3)} Mbps`
+      : `${fmt(p.bitrate_mbps * scale, 3)} ${unit}`;
+    const tooltip = $('tooltip'),
+      chart = $('chart'),
+      rect = chart.getBoundingClientRect();
+    tooltip.hidden = false;
+    const px = event.clientX - rect.left,
+      py = event.clientY - rect.top;
+    const w = tooltip.offsetWidth,
+      h = tooltip.offsetHeight;
+    const preferredX = px + 14 + w <= rect.width - 8 ? px + 14 : px - w - 14;
+    const preferredY = py - h - 18 >= 8 ? py - h - 18 : py + 18;
+    tooltip.style.left = `${Math.max(8, Math.min(rect.width - w - 8, preferredX))}px`;
+    tooltip.style.top = `${Math.max(8, Math.min(rect.height - h - 8, preferredY))}px`;
   };
-  svg.addEventListener('pointermove',showInterval);
-  svg.addEventListener('pointerdown',showInterval);
+  svg.addEventListener('pointermove', showInterval);
+  svg.addEventListener('pointerdown', showInterval);
   // A finger has no hover state: retain the tapped range after pointerup/leave.
-  svg.addEventListener('pointerleave',event=>{if(event.pointerType!=='touch')hideIntervalTooltip();});
-  svg.addEventListener('pointercancel',hideIntervalTooltip);
+  svg.addEventListener('pointerleave', (event) => {
+    if (event.pointerType !== 'touch') hideIntervalTooltip();
+  });
+  svg.addEventListener('pointercancel', hideIntervalTooltip);
 }
-function hideIntervalTooltip(){
-  $('interval-highlight')?.setAttribute('visibility','hidden');
-  if($('tooltip'))$('tooltip').hidden=true;
-  for(const id of ['tooltip-range','tooltip-rates'])if($(id))$(id).textContent='';
+function hideIntervalTooltip() {
+  $('interval-highlight')?.setAttribute('visibility', 'hidden');
+  if ($('tooltip')) $('tooltip').hidden = true;
+  for (const id of ['tooltip-range', 'tooltip-rates']) if ($(id)) $(id).textContent = '';
 }
-document.addEventListener('pointerdown',event=>{if(!event.target.closest('#chart'))hideIntervalTooltip();});
-$('filled').addEventListener('change', drawChart);
-$('compare').addEventListener('change',drawChart);
-function download(content,type,extension) {
-  const url=URL.createObjectURL(new Blob([content],{type})), a=document.createElement('a');
-  a.href=url; a.download=`${result.filename}.${result.mode}.${extension}`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
-}
-$('export-json').addEventListener('click',()=>download(JSON.stringify(result,null,2),'application/json','json'));
-$('export-csv').addEventListener('click',()=>{
-  const data=$('compare').checked?(result.comparison_data||result):result;
-  const extra=data.comparison?['video_bytes','audio_bytes','video_bitrate_mbps','audio_bitrate_mbps']:[];
-  const header=['time_seconds','duration_seconds','bytes','packets','bitrate_mbps',...extra].join(',');
-  download(header+'\n'+data.points.map(p=>[p.time,p.duration,p.bytes,p.packets,p.bitrate_mbps,...extra.map(key=>p[key])].join(',')).join('\n'),'text/csv','csv');
+document.addEventListener('pointerdown', (event) => {
+  if (!event.target.closest('#chart')) hideIntervalTooltip();
 });
-$('export-svg').addEventListener('click',()=>download(new XMLSerializer().serializeToString($('chart').querySelector('svg')),'image/svg+xml','svg'));
+$('filled').addEventListener('change', drawChart);
+$('compare').addEventListener('change', drawChart);
+function download(content, type, extension) {
+  const url = URL.createObjectURL(new Blob([content], { type })),
+    a = document.createElement('a');
+  a.href = url;
+  a.download = `${result.filename}.${result.mode}.${extension}`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+$('export-json').addEventListener('click', () =>
+  download(JSON.stringify(result, null, 2), 'application/json', 'json'),
+);
+$('export-csv').addEventListener('click', () => {
+  const data = $('compare').checked ? result.comparison_data || result : result;
+  const extra = data.comparison
+    ? ['video_bytes', 'audio_bytes', 'video_bitrate_mbps', 'audio_bitrate_mbps']
+    : [];
+  const header = [
+    'time_seconds',
+    'duration_seconds',
+    'bytes',
+    'packets',
+    'bitrate_mbps',
+    ...extra,
+  ].join(',');
+  download(
+    header +
+      '\n' +
+      data.points
+        .map((p) =>
+          [
+            p.time,
+            p.duration,
+            p.bytes,
+            p.packets,
+            p.bitrate_mbps,
+            ...extra.map((key) => p[key]),
+          ].join(','),
+        )
+        .join('\n'),
+    'text/csv',
+    'csv',
+  );
+});
+$('export-svg').addEventListener('click', () =>
+  download(
+    new XMLSerializer().serializeToString($('chart').querySelector('svg')),
+    'image/svg+xml',
+    'svg',
+  ),
+);
 
 window.addEventListener('resize', drawChart);
