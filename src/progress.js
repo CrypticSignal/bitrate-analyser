@@ -1,22 +1,28 @@
-/** Timeline coverage estimates scan progress; it is not a time-remaining estimate. */
+/**
+ * Returns a function that turns scan updates into progress messages. The percentage is how
+ * much of the media timeline has been scanned so far; it is not a time-remaining estimate.
+ */
 export function scanProgress(timeline = {}) {
   const { start, duration } = timeline;
-  let furthest = null,
-    percent = null;
+  const canEstimate = Number.isFinite(start) && Number.isFinite(duration) && duration > 0;
+  let furthest = null;
+  let percent = null;
+
   return (timestamp, packets) => {
-    if (Number.isFinite(timestamp))
+    if (Number.isFinite(timestamp)) {
       furthest = furthest === null ? timestamp : Math.max(furthest, timestamp);
-    if (Number.isFinite(start) && Number.isFinite(duration) && duration > 0 && furthest !== null) {
-      percent = Math.max(
-        percent ?? 0,
-        Math.min(99, Math.max(0, Math.floor(((furthest - start) / duration) * 100))),
-      );
     }
+    if (canEstimate && furthest !== null) {
+      const covered = Math.floor(((furthest - start) / duration) * 100);
+      // Never move backwards, and stay below 100% until the scan has actually finished.
+      percent = Math.max(percent ?? 0, Math.min(99, Math.max(0, covered)));
+    }
+    const percentText = percent === null ? '' : ` · about ${percent}%`;
     return {
       stage: 'scanning',
       percent,
       packets,
-      message: `Scanning packets${percent === null ? '' : ` · about ${percent}%`} · ${packets.toLocaleString()} packets read`,
+      message: `Scanning packets${percentText} · ${packets.toLocaleString()} packets read`,
     };
   };
 }
