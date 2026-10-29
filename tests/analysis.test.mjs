@@ -127,3 +127,14 @@ test('partial range bounds include packet duration at the actual timeline end',(
  const earlier=analyze([{time:0,size:100,duration:2.75},{time:1,size:100,duration:.1}]);
  assert.equal(earlier.end_timestamp,2.75);
 });
+
+
+test('whole-stream average includes partial bytes independently of chart intervals',()=>{
+ const data=[{time:0,size:125000,duration:1},{time:1,size:250000,duration:.5}];
+ for(const includePartial of [false,true]){
+  const r=analyze(data,{includePartial});
+  assert.equal(r.duration_seconds,1.5);assert.equal(r.overall_bitrate_mbps,2);
+  assert.equal(r.bitrate_mbps.mean,includePartial?1.5:1);
+ }
+ assert.equal(analyze([{time:0,size:1}],{includePartial:true}).overall_bitrate_mbps,null);
+});

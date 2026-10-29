@@ -53,6 +53,8 @@ export function analyze(input,{mode='seconds',includePartial=false,video=true}={
   const result={mode,points,bitrate_mbps:summarize(points.map(p=>p.bitrate_mbps)),total_packets:packets.length,
     total_bytes:packets.reduce((sum,p)=>sum+p.size,0),first_timestamp:packets[0].time,last_timestamp:packets.at(-1).time,end_timestamp:endTimestamp,
     partial_seconds:partial,include_partial:includePartial,seconds_without_packets:missing};
+  result.duration_seconds=endTimestamp-packets[0].time;
+  result.overall_bitrate_mbps=result.duration_seconds>0?result.total_bytes*8/result.duration_seconds/1e6:null;
   if(mode==='gop'){
     // Overall bits / elapsed time; averaging rates equally biases variable GOPs.
     result.bitrate_mbps.mean=points.reduce((sum,p)=>sum+p.bytes,0)*8/

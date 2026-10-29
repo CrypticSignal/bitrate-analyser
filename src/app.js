@@ -121,14 +121,15 @@ $('analysis-form').addEventListener('submit', event => {
   }catch(error){fail(error.message);}
 });
 function metric(id, value, unit) {
-  $(id).replaceChildren(document.createTextNode(fmt(value,3)), Object.assign(document.createElement('em'), {textContent: unit}));
+  $(id).replaceChildren(document.createTextNode(value===null?'Unavailable':fmt(value,3)), Object.assign(document.createElement('em'), {textContent: unit}));
 }
 function render() {
   const r = result, audio = r.stream.type === 'audio', scale = audio ? 1000 : 1, unit = audio ? 'kbps' : 'Mbps';
   $('result-title').textContent = r.filename;
   $('status').textContent = 'Analysis complete';
   ['average', 'peak', 'minimum'].forEach((id, i) => metric(id, r.bitrate_mbps[['mean','max','min'][i]] * scale, unit));
-  metric('duration', r.metadata.duration || r.last_timestamp - r.first_timestamp, 'sec');
+  metric('whole-average',r.overall_bitrate_mbps===null?null:r.overall_bitrate_mbps*scale,unit);
+  metric('duration', r.duration_seconds, 'sec');
   const tracks=(r.selected_streams||[r.stream]).map(s=>`#${s.index} · ${s.type} / ${s.codec}`).join(' + ');
   $('stream-note').textContent = `${tracks} · ${r.timestamp}`;
   $('legend').textContent = `${r.stream.type==='combined'?'Video + audio':r.stream.type} · ${unit}`;
