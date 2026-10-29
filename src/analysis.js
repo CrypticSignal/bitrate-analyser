@@ -69,6 +69,13 @@ export function analyze(input,{mode='seconds',includePartial=false,video=true,co
     result.gop={count:points.length,duration_seconds:summarize(points.map(p=>p.duration)),
       packets:summarize(points.map(p=>p.packets)),size_megabits:summarize(points.map(p=>p.bytes*8/1e6))};
   }
+  result.bitrate_ranges={};
+  for(const key of ['min','max']){
+    const value=result.bitrate_mbps[key];let first=null,count=0;
+    for(const point of points)if(point.bitrate_mbps===value){first??=point;count++;}
+    result.bitrate_ranges[key]={start:Math.max(first.time,packets[0].time),
+      end:Math.min(first.time+first.duration,endTimestamp),count,partial:first.complete===false};
+  }
   return result;
 }
 export function finiteNumber(value,fallback=0){

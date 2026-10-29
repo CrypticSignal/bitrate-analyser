@@ -176,6 +176,10 @@ function render() {
   const r = result, audio = r.stream.type === 'audio', scale = audio ? 1000 : 1, unit = audio ? 'kbps' : 'Mbps';
   document.querySelector('.results').dataset.state = 'complete';
   ['average', 'peak', 'minimum'].forEach((id, i) => metric(id, r.bitrate_mbps[['mean','max','min'][i]] * scale, unit));
+  for(const [id,key] of [['peak','max'],['minimum','min']]){
+    const range=r.bitrate_ranges[key];
+    $(id+'-note').textContent=`${fmt(range.start,3)}–${fmt(range.end,3)} s${range.partial?' (partial second)':''}${range.count>1?` · first of ${range.count.toLocaleString()} equal values`:''}`;
+  }
   metric('whole-average',r.overall_bitrate_mbps===null?null:r.overall_bitrate_mbps*scale,unit);
   const tracks=(r.selected_streams||[r.stream]).map(s=>`#${s.index} · ${s.type} / ${s.codec}`).join(' + ');
   $('legend').textContent = `${r.stream.type==='combined'?'Video + audio':r.stream.type} · ${unit}`;

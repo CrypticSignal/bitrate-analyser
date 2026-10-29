@@ -168,3 +168,14 @@ test('analysis range follows included intervals and clips partial buckets to rea
  const gop=analyze([{time:-1,size:100,duration:1},{time:0,size:100,duration:1,keyframe:true}],{mode:'gop'});
  assert.deepEqual(gop.analysis_range,{start:0,end:1});
 });
+
+
+test('extreme bitrate ranges locate first tied interval and actual partial bounds',()=>{
+ const r=analyze([{time:-.1,size:100,duration:.1},{time:0,size:1000,duration:1},
+ {time:1,size:1000,duration:1},{time:2,size:200,duration:.25}],{includePartial:true});
+ assert.deepEqual(r.bitrate_ranges.max,{start:0,end:1,count:2,partial:false});
+ assert.deepEqual(r.bitrate_ranges.min,{start:-.1,end:0,count:1,partial:true});
+ const gop=analyze([{time:0,size:100,duration:1,keyframe:true},{time:1,size:900,duration:3,keyframe:true}],{mode:'gop'});
+ assert.deepEqual(gop.bitrate_ranges.max,{start:1,end:4,count:1,partial:false});
+ assert.deepEqual(gop.bitrate_ranges.min,{start:0,end:1,count:1,partial:false});
+});

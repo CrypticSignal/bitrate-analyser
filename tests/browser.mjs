@@ -192,6 +192,7 @@ try{
  await page.locator('#compare').uncheck();
  assert.equal(await page.locator('#chart path[data-series]').count(),1);
 
+ for(const id of ['peak-note','minimum-note'])assert.match(await page.locator('#'+id).innerText(),/\d+(?:\.\d{3})?–\d+(?:\.\d{3})? s/);
  const rangeEntry=page.locator('#details dt').filter({hasText:'Analysis range'});
  assert.equal(await rangeEntry.locator('xpath=following-sibling::dd[1]').innerText(),'0 – 3 s');
  for(const id of ['whole-average','average','peak','minimum'])assert.match(await page.locator('#'+id).innerText(),/\d+(?:\.\d{3})?(?:Mbps|kbps|sec)$/);
