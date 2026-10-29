@@ -20,7 +20,7 @@ $('file').addEventListener('change', sourceChanged);
 }));
 $('mode').addEventListener('change', () => {
   $('partial').disabled = $('mode').value === 'gop';
-  $('partial-hint').textContent = $('mode').value === 'gop' ? 'GOP boundaries are determined by keyframe packet timestamps.' : 'Bitrate uses fixed 1-second intervals: packet bits ÷ 1 second. By default, a packet-coverage filter excludes sparse and edge intervals.';
+  $('partial-hint').textContent = $('mode').value === 'gop' ? 'GOP boundaries are determined by keyframe packet timestamps.' : 'Bitrate = packet bits in each fixed 1-second interval ÷ 1 second. By default, only full intervals within the stream’s packet timeline are included.';
 });
 let activeWorker = null;
 let activeTimer = null;
@@ -80,7 +80,7 @@ function render() {
   $('stream').replaceChildren(new Option('Auto · first video, otherwise audio', 'auto'), ...r.metadata.streams.map(s => new Option(`#${s.index} · ${s.type} · ${s.codec}`, String(s.index))));
   $('stream').value = selected;
   $('message').className = '';
-  $('message').textContent = r.mode === 'seconds' && r.partial_seconds.length ? `${r.partial_seconds.length} partial or sparse second bucket(s) ${r.include_partial ? 'included as raw bits per one-second bucket; edge buckets may be lower' : 'excluded from the chart and statistics'}.` : '';
+  $('message').textContent = r.mode === 'seconds' && r.partial_seconds.length ? `${r.partial_seconds.length} partial start/end interval(s) ${r.include_partial ? 'included as raw bits per one-second bucket; edge buckets may be lower' : 'excluded from the chart and statistics'}.` : '';
   $('chart-caption').textContent = `${r.timestamp} timestamps · ${r.points.length.toLocaleString()} intervals`;
   $('gop-panel').hidden = r.mode !== 'gop';
   if (r.gop) {

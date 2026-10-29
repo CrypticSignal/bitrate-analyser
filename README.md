@@ -25,7 +25,7 @@ Once built, the app only requests its own static assets. It can run without an I
 - Local file picker and drag/drop; no uploads.
 - Video/audio stream selection, including audio tracks inside video containers.
 - PTS and DTS timestamps, with negative timestamps supported.
-- Per-second bitrate with the original complete-second criteria and optional partial buckets.
+- Fixed one-second bitrate intervals with optional partial start/end intervals.
 - Video GOP boundaries, duration, byte size, packet count and bitrate statistics.
 - Interactive chart, filled/unfilled area, kbps for audio and Mbps for video.
 - JSON, CSV, and SVG downloads generated in the browser.
@@ -45,7 +45,9 @@ There is no arbitrary 1 GB upload limit, because there are no uploads. Large-fil
 
 ### Calculation behavior
 
-Seconds use `floor(timestamp)`. A complete bucket needs at least 0.9 seconds of coverage from first to last packet timestamp and less than 0.1 seconds from its last packet to the next bucket's first packet. The final bucket is excluded by default. **Include partial seconds** keeps raw bits in each one-second bucket; it does not extrapolate a short bucket into a full-second rate. Empty seconds are counted separately and omitted. The reported mean is an arithmetic mean of displayed intervals.
+Packets are assigned to fixed `[second, second + 1)` intervals using `floor(timestamp)`. The timeline starts at the earliest selected-stream packet timestamp and ends at the latest packet timestamp plus its duration, in the selected PTS/DTS basis. Missing video packet durations fall back to average frame rate; otherwise an unknown final duration is treated conservatively as zero. Floating-point boundary noise within 0.1 microseconds is tolerated.
+
+By default, only intervals fully inside those bounds are included. There is no packet-coverage threshold: low-frame-rate and sparse intervals remain valid. Full intervals with no packets contribute zero bitrate. **Include partial seconds** also retains partial start/end intervals. All interval values are raw packet bits divided by exactly one second; partial intervals are not extrapolated. The mean is an arithmetic mean of displayed intervals, including empty ones. Packet bytes are assigned by their timestamp, not spread across the packet duration.
 
 GOPs start at keyframe packet timestamps in sorted PTS/DTS order. Packets before the first keyframe are excluded from GOP statistics. The next keyframe defines the end; the final GOP uses its final packet's duration, falling back to average frame rate. This is packet-based GOP analysis, not a decoder-level frame dependency graph. Reordered video may produce different PTS and DTS boundaries.
 
@@ -72,7 +74,7 @@ TEST_BROWSER_EXECUTABLE=/usr/bin/chromium npm run test:browser
 
 The tests cover:
 
-- Seven deterministic calculation/parsing tests, including negative timestamps, partial/sparse seconds and variable final GOP duration.
+- Ten deterministic calculation/parsing tests, including negative timestamps, partial/sparse seconds and variable final GOP duration.
 - Ten real WASM/native comparisons: H.264/AAC MP4 in PTS, DTS, GOP/PTS, GOP/DTS and embedded-audio modes; MP3; FLAC; VP9/Matroska GOPs; H.264/MPEG-TS DTS; short WAV partial buckets.
 - Exact packet/byte counts and interval values for the compressed-media cases. WAV compares bytes and bucket rates because packetization differs between engine versions.
 - Invalid media, audio GOP rejection, short-clip errors, stream switching in both directions, cancellation, exports, chart interaction and mobile overflow.
