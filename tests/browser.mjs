@@ -171,6 +171,8 @@ try{
  assert.equal(await page.locator('[name=timestamp]:checked').inputValue(),'dts');
  assert.equal(await page.locator('#progress-bar').evaluate(bar=>bar.value),100);
  assert.equal(await page.locator('#progress-label').innerText(),'Analysis complete · 100%');
+ const rangeEntry=page.locator('#details dt').filter({hasText:'Analysis range'});
+ assert.equal(await rangeEntry.locator('xpath=following-sibling::dd[1]').innerText(),'0 – 3 s');
  for(const id of ['whole-average','average','peak','minimum'])assert.match(await page.locator('#'+id).innerText(),/\d+(?:\.\d{3})?(?:Mbps|kbps|sec)$/);
  assert.match(await page.locator('#message').innerText(),/excluded from the chart and statistics: -0\.080-0 s, 3-3\.120 s\./);
  await page.locator('#stream').selectOption('combined');

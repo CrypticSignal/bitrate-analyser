@@ -183,6 +183,7 @@ function render() {
   $('average-note').textContent = `${r.mode === 'gop' ? 'Time-weighted across' : 'Across'} ${r.points.length.toLocaleString()} ${r.mode === 'gop' ? 'GOPs' : 'second buckets'}`;
   $('detail-text').textContent = `${r.total_packets.toLocaleString()} valid packets · ${fmt(r.total_bytes / 1e6)} MB of stream data · ${r.rejected_packets} rejected packets.`;
   const detail = {'Timestamp basis': r.timestamp, 'Selected streams': tracks, 'Observed timestamp range': `${fmt(r.first_timestamp, 3)} – ${fmt(r.last_timestamp, 3)} s`};
+  detail['Analysis range'] = `${fmt(r.analysis_range.start,3)} – ${fmt(r.analysis_range.end,3)} s`;
   if (r.engine) detail['Local engine'] = `FFprobe ${r.engine.ffprobe} · WASM`;
   if (r.stream.fps) detail['Average frame rate'] = `${fmt(r.stream.fps, 3)} FPS`;
   if (r.mode === 'seconds') detail['Seconds without packets'] = r.seconds_without_packets;

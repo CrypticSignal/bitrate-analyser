@@ -59,6 +59,7 @@ export function analyze(input,{mode='seconds',includePartial=false,video=true,co
   const result={mode,points,bitrate_mbps:summarize(points.map(p=>p.bitrate_mbps)),total_packets:packets.length,
     total_bytes:packets.reduce((sum,p)=>sum+p.size,0),first_timestamp:packets[0].time,last_timestamp:packets.at(-1).time,end_timestamp:endTimestamp,
     comparison:compare&&mode==='seconds',partial_seconds:partial,include_partial:includePartial,seconds_without_packets:missing};
+  result.analysis_range={start:Math.max(points[0].time,packets[0].time),end:Math.min(points.at(-1).time+points.at(-1).duration,endTimestamp)};
   result.duration_seconds=endTimestamp-packets[0].time;
   result.overall_bitrate_mbps=result.duration_seconds>0?result.total_bytes*8/result.duration_seconds/1e6:null;
   if(mode==='gop'){

@@ -157,3 +157,14 @@ test('comparison components share buckets, preserve offsets and sum to combined'
  for(const p of r.points){assert.equal(p.video_bytes+p.audio_bytes,p.bytes);assert.ok(Math.abs(p.video_bitrate_mbps+p.audio_bitrate_mbps-p.bitrate_mbps)<1e-12);}
  assert.equal(r.points[0].video_bytes,0);assert.equal(r.points[1].audio_bytes,250);
 });
+
+
+test('analysis range follows included intervals and clips partial buckets to real bounds',()=>{
+ const packets=[{time:-.067,size:100,duration:.067},{time:0,size:100,duration:1},
+ {time:201.265,size:100,duration:.04}];
+ assert.deepEqual(analyze(packets).analysis_range,{start:0,end:201});
+ const partial=analyze(packets,{includePartial:true});
+ assert.equal(partial.analysis_range.start,-.067);assert.ok(Math.abs(partial.analysis_range.end-201.305)<1e-9);
+ const gop=analyze([{time:-1,size:100,duration:1},{time:0,size:100,duration:1,keyframe:true}],{mode:'gop'});
+ assert.deepEqual(gop.analysis_range,{start:0,end:1});
+});
