@@ -72,6 +72,14 @@ try{
  await page.locator('#segment-output').waitFor({state:'visible'});
  assert.match(await page.locator('#segment-summary').innerText(),/1\.333 Mbps average · 2 Mbps peak/);
  assert.equal(await page.locator('#segment-rows tr').count(),2);
+ assert.equal(await page.locator('#bandwidth-value').innerText(),'2.520 Mbps');
+ await page.locator('#overhead').fill('10');await page.locator('#headroom').fill('50');
+ assert.equal(await page.locator('#bandwidth-value').innerText(),'3.300 Mbps');
+ await page.locator('#bandwidth-source').selectOption('segment-average');
+ assert.equal(await page.locator('#bandwidth-value').innerText(),'2.200 Mbps');
+ await page.locator('#overhead').fill('-1');assert.equal(await page.locator('#bandwidth-export').isDisabled(),true);
+ await page.locator('#overhead').fill('5');await page.locator('#headroom').fill('20');
+
  const segmentDownload=page.waitForEvent('download');await page.locator('#segment-export').click();
  assert.equal((await segmentDownload).suggestedFilename(),'segment-bitrates.csv');
  const probe=await wasm(multi,{metadataOnly:true});

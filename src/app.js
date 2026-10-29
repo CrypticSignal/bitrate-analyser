@@ -174,6 +174,7 @@ function render() {
   }
   ['export-svg','export-json','export-csv'].forEach(id => $(id).disabled = false);
   drawChart();
+  window.dispatchEvent(new CustomEvent('bitrate-result',{detail:r}));
 }
 function drawChart() {
   if (!result) return;

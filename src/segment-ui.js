@@ -28,6 +28,7 @@ function calculate(){
       return row;
     }));
     $('segment-status').textContent=r.points.length>500?'Showing the first 500 segments. CSV includes all segments.':'All segments shown.';
+    window.dispatchEvent(new CustomEvent('segment-result',{detail:r}));
     $('segment-output').hidden=false;$('segment-export').disabled=false;
   }catch(e){error(e.message);}
 }
