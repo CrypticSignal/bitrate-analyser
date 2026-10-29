@@ -11,3 +11,5 @@
 .comparison-key{display:flex;gap:18px;padding:8px 20px;font-size:11px}.comparison-key span::before{content:'━';margin-right:5px}.comparison-key span:nth-child(1){color:#7dcfff}.comparison-key span:nth-child(2){color:#f6b970}.comparison-key span:nth-child(3){color:#baf28a}.chart-toolbar{flex-wrap:wrap}.chart-actions{flex-wrap:wrap}
 
 .bandwidth-panel>summary,.segment-panel>summary{cursor:pointer;font-size:14px;font-weight:500}.bandwidth-panel>summary:focus-visible,.segment-panel>summary:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
+
+.chart-panel+.metrics{margin-top:20px}
