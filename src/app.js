@@ -121,7 +121,7 @@ $('analysis-form').addEventListener('submit', event => {
   }catch(error){fail(error.message);}
 });
 function metric(id, value, unit) {
-  $(id).replaceChildren(document.createTextNode(fmt(value)), Object.assign(document.createElement('em'), {textContent: unit}));
+  $(id).replaceChildren(document.createTextNode(fmt(value,3)), Object.assign(document.createElement('em'), {textContent: unit}));
 }
 function render() {
   const r = result, audio = r.stream.type === 'audio', scale = audio ? 1000 : 1, unit = audio ? 'kbps' : 'Mbps';
@@ -145,7 +145,7 @@ function render() {
   $('stream').value = selected;
   updateMode();
   $('message').className = '';
-  const timestamp=value=>String(Number(value.toFixed(6)));
+  const timestamp=value=>value.toFixed(3);
   const partialRanges=r.partial_seconds.map(second=>`${timestamp(Math.max(second,r.first_timestamp))}-${timestamp(Math.min(second+1,r.end_timestamp))} s`).join(', ');
   $('message').textContent = r.mode === 'seconds' && r.partial_seconds.length ? `${r.partial_seconds.length} partial start/end interval${r.partial_seconds.length===1?'':'s'} ${r.include_partial ? 'included as raw bits per one-second bucket' : 'excluded from the chart and statistics'}: ${partialRanges}.${r.include_partial?' Edge buckets may be lower.':''}` : '';
   $('chart-caption').textContent = `${r.timestamp} timestamps · ${r.points.length.toLocaleString()} intervals`;
@@ -181,7 +181,7 @@ function drawChart() {
   let grid = '';
   for(let i=0;i<=4;i++) {
     const yy=top+(bottom-top)*i/4, value=max*(1-i/4);
-    grid += `<line x1="${left}" y1="${yy}" x2="${right}" y2="${yy}" stroke="#2b3c3b"/><text x="${left-13}" y="${yy+4}" text-anchor="end">${fmt(value,2)}</text>`;
+    grid += `<line x1="${left}" y1="${yy}" x2="${right}" y2="${yy}" stroke="#2b3c3b"/><text x="${left-13}" y="${yy+4}" text-anchor="end">${fmt(value,3)}</text>`;
     const t=start+(end-start)*i/4, xx=x(t);
     grid += `<text x="${xx}" y="${bottom+26}" text-anchor="middle">${fmt(t,1)}s</text>`;
   }
