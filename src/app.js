@@ -208,20 +208,25 @@ function render() {
     $('gop-note').textContent = r.points.length > 500 ? 'Showing the first 500 GOPs. Exports include all GOPs.' : 'Exports include all GOPs.';
   }
   ['export-svg','export-json','export-csv'].forEach(id => $(id).disabled = false);
-  $('compare').disabled=!r.comparison;
-  if(!r.comparison)$('compare').checked=false;
+  $('compare').disabled=!(r.comparison||r.comparison_data);
+  if($('compare').disabled)$('compare').checked=false;
   drawChart();
   window.dispatchEvent(new CustomEvent('bitrate-result',{detail:r}));
 }
 function drawChart() {
   if (!result) return;
-  const r = result, points = r.points, scale = r.stream.type === 'audio' ? 1000 : 1;
+  const r=result,compare=$('compare').checked&&!!(r.comparison||r.comparison_data);
+  const chartData=compare?(r.comparison_data||r):r;
+  const points=chartData.points,scale=!compare&&r.stream.type==='audio'?1000:1;
+  const comparisonTracks=(r.comparison_data||r).selected_streams||[];
+  $('compare-note').textContent=compare?`Comparing ${comparisonTracks.map(s=>`#${s.index} ${s.type} (${s.codec})`).join(' + ')}. Cards and analysis details describe the selected stream(s); the overlay uses the combined timeline.`:
+    $('compare').disabled?(r.mode==='gop'?'Comparison requires per-second analysis.':r.comparison_unavailable||'Comparison requires both a video and an audio track.'):'Compare the selected track with its default video/audio counterpart; no additional scan is needed.';
   const width = Math.max(320, $('chart').clientWidth - 16), height = 350, left = 55, right = width - 15, top = 22, bottom = 300;
   const start = points[0].time, end = Math.max(start + 1, points.at(-1).time + points.at(-1).duration);
-  const max = Math.max(...[r.bitrate_mbps.max * scale * 1.12, 0.001]);
+  const max = Math.max(...[chartData.bitrate_mbps.max * scale * 1.12, 0.001]);
   const x = t => left + (t-start)/(end-start)*(right-left), y = b => bottom-b*scale/max*(bottom-top);
-  const compare=$('compare').checked&&r.comparison;
   $('comparison-key').hidden=!compare;
+  $('chart-caption').textContent=`${r.timestamp} timestamps · ${points.length.toLocaleString()} intervals${compare?' · combined comparison timeline':''}`;
   const series=compare?[{key:'bitrate_mbps',id:'combined',label:'Combined',color:'#baf28a'},
     {key:'video_bitrate_mbps',id:'video',label:'Video',color:'#7dcfff'},
     {key:'audio_bitrate_mbps',id:'audio',label:'Audio',color:'#f6b970'}]:[{key:'bitrate_mbps',id:'selected',label:'Selected stream',color:'#baf28a'}];
@@ -269,9 +274,10 @@ function download(content,type,extension) {
 }
 $('export-json').addEventListener('click',()=>download(JSON.stringify(result,null,2),'application/json','json'));
 $('export-csv').addEventListener('click',()=>{
-  const extra=result.comparison?['video_bytes','audio_bytes','video_bitrate_mbps','audio_bitrate_mbps']:[];
+  const data=$('compare').checked?(result.comparison_data||result):result;
+  const extra=data.comparison?['video_bytes','audio_bytes','video_bitrate_mbps','audio_bitrate_mbps']:[];
   const header=['time_seconds','duration_seconds','bytes','packets','bitrate_mbps',...extra].join(',');
-  download(header+'\n'+result.points.map(p=>[p.time,p.duration,p.bytes,p.packets,p.bitrate_mbps,...extra.map(key=>p[key])].join(',')).join('\n'),'text/csv','csv');
+  download(header+'\n'+data.points.map(p=>[p.time,p.duration,p.bytes,p.packets,p.bitrate_mbps,...extra.map(key=>p[key])].join(',')).join('\n'),'text/csv','csv');
 });
 $('export-svg').addEventListener('click',()=>download(new XMLSerializer().serializeToString($('chart').querySelector('svg')),'image/svg+xml','svg'));
 

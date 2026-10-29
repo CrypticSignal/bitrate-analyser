@@ -68,6 +68,20 @@ self.onmessage=async({data:{file,mode,timestamp,stream,includePartial,pairing={}
       }
     }
     const result=analyze(packets,{mode,includePartial,video:selected.type==='video',compare:combined&&selectedStreams.length===2});
+    // All tracks were already demuxed. Build optional comparison without another scan.
+    if(!combined&&mode==='seconds'&&info.streams.some(s=>s.type==='video'&&!s.attached_picture)&&info.streams.some(s=>s.type==='audio')){
+      const defaults=playbackStreams(info.streams);
+      const comparisonTracks=defaults.map(track=>selectedStreams.find(s=>s.type===track.type&&!s.attached_picture)||track);
+      const comparisonPackets=[];
+      for(const track of comparisonTracks)for(const p of byStream.get(track.index)||[]){
+        if(!p.duration&&track.type==='video'&&track.fps>0)p.duration=1/track.fps;
+        p.media_type=track.type;comparisonPackets.push(p);
+      }
+      try{
+        result.comparison_data=analyze(comparisonPackets,{mode:'seconds',includePartial,compare:true});
+        result.comparison_data.selected_streams=comparisonTracks;
+      }catch(error){result.comparison_unavailable=error.message;}
+    }
     result.selected_streams=selectedStreams;result.selection=stream;result.pairing=combined?pairing:null;
     result.filename=file.name;result.file_bytes=file.size;result.timestamp=timestamp.toUpperCase();
     result.engine={core:'@ffmpeg/core@0.12.10',ffprobe:version};result.metadata=info;result.stream=selected;result.rejected_packets=selectedStreams.reduce((sum,s)=>sum+(rejectedByStream.get(s.index)||0),0);

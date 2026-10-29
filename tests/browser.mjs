@@ -105,6 +105,11 @@ try{
   assert.equal(actual.points.length,expected.points.length,`${path} interval count`);
   for(let i=0;i<actual.points.length;i++)for(const key of path===short?['time','duration','bytes','bitrate_mbps']:['time','duration','bytes','packets','bitrate_mbps'])assert.ok(Math.abs(actual.points[i][key]-expected.points[i][key])<1e-5,`${path} interval ${i} ${key}: ${actual.points[i][key]} vs ${expected.points[i][key]}`);
   if(options.stream==='combined'){assert.deepEqual(actual.selected_streams.map(s=>s.index),path===multi?[0,2]:[0,1]);assert.equal(actual.stream.index,'combined');for(const point of actual.points){assert.equal(point.video_bytes+point.audio_bytes,point.bytes);assert.ok(Math.abs(point.video_bitrate_mbps+point.audio_bitrate_mbps-point.bitrate_mbps)<1e-12);}}
+  if(actual.comparison_data){
+   const paired=native(path,{...options,stream:'combined'});
+   assert.deepEqual(actual.comparison_data.points.map(p=>p.bytes),paired.points.map(p=>p.bytes));
+   assert.ok(actual.comparison_data.points.some(p=>p.audio_bytes>0&&p.video_bytes>0));
+  }
   assert.ok(actual.test_progress.some(p=>p.stage==='loading'));
   assert.ok(actual.test_progress.some(p=>p.stage==='scanning'&&p.packets>0));
   assert.ok(actual.test_progress.some(p=>p.stage==='calculating'));
@@ -171,6 +176,15 @@ try{
  assert.equal(await page.locator('[name=timestamp]:checked').inputValue(),'dts');
  assert.equal(await page.locator('#progress-bar').evaluate(bar=>bar.value),100);
  assert.equal(await page.locator('#progress-label').innerText(),'Analysis complete · 100%');
+ // Comparison must work after the default Auto analysis, without another Analyze.
+ const selectedAverage=await page.locator('#whole-average').innerText();
+ await page.locator('#compare').check();
+ assert.equal(await page.locator('#chart path[data-series]').count(),3);
+ assert.match(await page.locator('#compare-note').innerText(),/#0 video.*#1 audio/);
+ assert.equal(await page.locator('#whole-average').innerText(),selectedAverage);
+ await page.locator('#compare').uncheck();
+ assert.equal(await page.locator('#chart path[data-series]').count(),1);
+
  const rangeEntry=page.locator('#details dt').filter({hasText:'Analysis range'});
  assert.equal(await rangeEntry.locator('xpath=following-sibling::dd[1]').innerText(),'0 – 3 s');
  for(const id of ['whole-average','average','peak','minimum'])assert.match(await page.locator('#'+id).innerText(),/\d+(?:\.\d{3})?(?:Mbps|kbps|sec)$/);
@@ -197,10 +211,14 @@ try{
 
  await page.locator('#stream').selectOption('1');await page.locator('#analyze').click();await page.getByText('Analysis complete',{exact:true}).waitFor({timeout:60000});
  assert.equal(await page.locator('#stream option').count(),4);
- assert.equal(await page.locator('#compare').isDisabled(),true);
+ assert.equal(await page.locator('#compare').isEnabled(),true);
+ await page.locator('#compare').check();
+ assert.equal(await page.locator('#chart path[data-series]').count(),3);
+ await page.locator('#compare').uncheck();
  assert.equal(await page.locator('#chart path[data-series]').count(),1);
  await page.locator('#stream').selectOption('0');await page.locator('#mode').selectOption('gop');await page.locator('#analyze').click();await page.getByText('Analysis complete',{exact:true}).waitFor({timeout:60000});
  assert.ok(await page.locator('#gop-body tr').count()>0);
+ assert.equal(await page.locator('#compare').isDisabled(),true);
  await page.locator('#filled').check();await page.locator('#chart svg').hover();
  for(const extension of ['json','csv','svg']){const pending=page.waitForEvent('download');await page.locator('#export-'+extension).click();const d=await pending;assert.ok(d.suggestedFilename().endsWith('.'+extension));}
  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
