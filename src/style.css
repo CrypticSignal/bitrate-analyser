@@ -698,10 +698,6 @@ aside {
   line-height: 1.6;
 }
 
-.metrics + #message:not(:empty) {
-  margin-top: 20px;
-}
-
 #message.error {
   background: #392627;
   border-color: #9d6061;

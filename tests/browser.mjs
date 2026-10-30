@@ -518,6 +518,14 @@ async function testFileInformation(page) {
     ),
     'File information moves below bandwidth estimate after analysis',
   );
+  assert.ok(
+    await page.evaluate(
+      () =>
+        document.querySelector('#message').getBoundingClientRect().bottom <=
+        document.querySelector('.chart-panel').getBoundingClientRect().top,
+    ),
+    'Status message sits above chart',
+  );
   await chooseFile(page, audio);
   assert.ok(
     await page.evaluate(

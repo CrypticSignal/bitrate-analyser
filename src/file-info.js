@@ -29,7 +29,7 @@ export function showFileInfo(metadata, file) {
 
 export function clearFileInfo() {
   // A newly chosen file has not been analysed yet, so its details go back above the chart.
-  document.querySelector('.results').prepend($('file-info'));
+  $('message').after($('file-info'));
   $('file-info').open = true;
   $('file-info').hidden = true;
   $('file-summary').replaceChildren();
