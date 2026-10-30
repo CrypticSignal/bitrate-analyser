@@ -518,7 +518,7 @@ async function testFileInformation(page) {
     ),
     'File information moves below bandwidth estimate after analysis',
   );
-  await chooseFile(page, multi);
+  await chooseFile(page, audio);
   assert.ok(
     await page.evaluate(
       () =>
@@ -527,6 +527,7 @@ async function testFileInformation(page) {
     ),
     'A newly chosen file shows its information above chart again',
   );
+  await chooseFile(page, multi);
 }
 
 async function testStreamSelection(page) {
