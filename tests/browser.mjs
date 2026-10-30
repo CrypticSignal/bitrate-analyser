@@ -478,10 +478,10 @@ async function testFileInformation(page) {
   assert.ok(
     await page.evaluate(
       () =>
-        document.querySelector('#file-info').getBoundingClientRect().bottom <=
-        document.querySelector('.chart-panel').getBoundingClientRect().top,
+        document.querySelector('.bandwidth-panel').getBoundingClientRect().bottom <=
+        document.querySelector('#file-info').getBoundingClientRect().top,
     ),
-    'File information sits above chart',
+    'File information sits below bandwidth estimate',
   );
 
   // The panel collapses and expands.
