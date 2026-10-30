@@ -114,6 +114,16 @@
           </form>
         </aside>
         <section class="results" aria-label="Analysis results">
+          <details id="file-info" class="file-info" aria-labelledby="file-info-title" open hidden>
+            <summary id="file-info-title">File information</summary>
+            <dl id="file-summary"></dl>
+            <p class="hint">
+              Reported by the container / FFprobe; bitrates may be unavailable or differ from
+              packet-based analysis. Container start time is the reported timeline offset; it can be
+              negative due to encoder delay or synchronization offsets.
+            </p>
+            <div id="file-streams"></div>
+          </details>
           <div class="chart-panel">
             <div class="chart-toolbar">
               <h3 id="chart-title">Bitrate over time</h3>
@@ -214,16 +224,6 @@
               require more bandwidth.
             </p>
             <button id="bandwidth-export" disabled>↓ Estimate JSON</button>
-          </details>
-          <details id="file-info" class="file-info" aria-labelledby="file-info-title" open hidden>
-            <summary id="file-info-title">File information</summary>
-            <dl id="file-summary"></dl>
-            <p class="hint">
-              Reported by the container / FFprobe; bitrates may be unavailable or differ from
-              packet-based analysis. Container start time is the reported timeline offset; it can be
-              negative due to encoder delay or synchronization offsets.
-            </p>
-            <div id="file-streams"></div>
           </details>
           <div id="gop-panel" hidden>
             <h3>GOP statistics</h3>

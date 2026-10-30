@@ -1,6 +1,6 @@
 /** Main page: choosing a file and stream, running the probe worker, and showing the result. */
 import { canCompare, drawChart, hideTooltip } from './chart.js';
-import { clearFileInfo, showFileInfo } from './file-info.js';
+import { clearFileInfo, moveFileInfoBelowEstimate, showFileInfo } from './file-info.js';
 import { $, definitionItems, downloadFile, formatNumber, tableRow } from './ui.js';
 
 const WORKER_TIMEOUT_MS = 5 * 60 * 1000;
@@ -219,6 +219,7 @@ function onAnalyze(event) {
     return;
   }
 
+  moveFileInfoBelowEstimate();
   $('analyze').disabled = true;
   $('analyze').textContent = 'Analyzing locally…';
   $('cancel').hidden = false;

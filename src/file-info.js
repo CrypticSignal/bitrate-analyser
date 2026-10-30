@@ -28,10 +28,17 @@ export function showFileInfo(metadata, file) {
 }
 
 export function clearFileInfo() {
+  // A newly chosen file has not been analysed yet, so its details go back above the chart.
+  document.querySelector('.results').prepend($('file-info'));
   $('file-info').open = true;
   $('file-info').hidden = true;
   $('file-summary').replaceChildren();
   $('file-streams').replaceChildren();
+}
+
+// Once analysis starts, the results take the top of the page and the file details move lower.
+export function moveFileInfoBelowEstimate() {
+  document.querySelector('.bandwidth-panel').after($('file-info'));
 }
 
 function streamSection(stream) {

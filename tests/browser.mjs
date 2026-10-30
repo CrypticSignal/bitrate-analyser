@@ -478,10 +478,10 @@ async function testFileInformation(page) {
   assert.ok(
     await page.evaluate(
       () =>
-        document.querySelector('.bandwidth-panel').getBoundingClientRect().bottom <=
-        document.querySelector('#file-info').getBoundingClientRect().top,
+        document.querySelector('#file-info').getBoundingClientRect().bottom <=
+        document.querySelector('.chart-panel').getBoundingClientRect().top,
     ),
-    'File information sits below bandwidth estimate',
+    'File information sits above chart',
   );
 
   // The panel collapses and expands.
@@ -508,6 +508,25 @@ async function testFileInformation(page) {
   assert.match(streams, /160 × 90/);
   assert.match(streams, /48,000 Hz/);
   await assertNoHorizontalScroll(page);
+
+  await analyzeInUi(page);
+  assert.ok(
+    await page.evaluate(
+      () =>
+        document.querySelector('.bandwidth-panel').getBoundingClientRect().bottom <=
+        document.querySelector('#file-info').getBoundingClientRect().top,
+    ),
+    'File information moves below bandwidth estimate after analysis',
+  );
+  await chooseFile(page, multi);
+  assert.ok(
+    await page.evaluate(
+      () =>
+        document.querySelector('#file-info').getBoundingClientRect().bottom <=
+        document.querySelector('.chart-panel').getBoundingClientRect().top,
+    ),
+    'A newly chosen file shows its information above chart again',
+  );
 }
 
 async function testStreamSelection(page) {
