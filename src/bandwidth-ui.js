@@ -1,21 +1,19 @@
 /** The "Bandwidth planning estimate" panel. Sources come from media and segment results. */
 import { estimateBandwidth } from './bandwidth.js';
-import { $, downloadFile } from './ui.js';
+import { $, downloadFile, formatNumber } from './ui.js';
 
 // Measured rates to choose from, keyed by <option> value: { label, value }.
 const sources = new Map();
 let estimate = null;
 
-const formatMbps = (value) => value.toFixed(3).replace(/\.000$/, '');
-
 function render() {
   try {
     estimate = calculateEstimate();
-    $('bandwidth-value').textContent = `${formatMbps(estimate.estimate_mbps)} Mbps`;
+    $('bandwidth-value').textContent = `${formatNumber(estimate.estimate_mbps, 3)} Mbps`;
     $('bandwidth-detail').textContent =
-      `${estimate.source}: ${formatMbps(estimate.base_mbps)} Mbps` +
-      ` × ${formatMbps(1 + estimate.overhead_percent / 100)} (overhead)` +
-      ` × ${formatMbps(1 + estimate.headroom_percent / 100)} (headroom).`;
+      `${estimate.source}: ${formatNumber(estimate.base_mbps, 3)} Mbps` +
+      ` × ${formatNumber(1 + estimate.overhead_percent / 100, 3)} (overhead)` +
+      ` × ${formatNumber(1 + estimate.headroom_percent / 100, 3)} (headroom).`;
     $('bandwidth-export').disabled = false;
   } catch (error) {
     estimate = null;

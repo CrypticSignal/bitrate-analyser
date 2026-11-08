@@ -442,6 +442,57 @@ async function testNativeParity(page) {
   }
 }
 
+/**
+ * A worker that has scanned a file answers later requests with other settings from the same
+ * packets, without loading the engine or scanning again.
+ */
+async function testReanalysisReusesScan(page) {
+  const bytes = await readFile(multi);
+  const followUps = [
+    { stream: '0', timestamp: 'dts' },
+    { stream: '2', timestamp: 'pts', includePartial: true },
+    { stream: 'combined', timestamp: 'dts' },
+  ];
+  const results = await page.evaluate(
+    ({ bytes, followUps }) =>
+      new Promise((resolve, reject) => {
+        const worker = new Worker('./probe-worker.js', { type: 'module' });
+        const file = new File([Uint8Array.from(atob(bytes), (c) => c.charCodeAt(0))], 'multi.mp4');
+        const base = { file, mode: 'seconds', stream: 'auto', timestamp: 'pts' };
+        const requests = [base, ...followUps.map((options) => ({ ...base, ...options }))];
+        const collected = [];
+        let stages = [];
+        worker.onmessage = ({ data }) => {
+          if (data.type === 'progress') stages.push(data.stage);
+          if (data.type === 'error') reject(new Error(data.message));
+          if (data.type !== 'result') return;
+          collected.push({ ...data.result, test_stages: stages });
+          stages = [];
+          if (collected.length === requests.length) {
+            worker.terminate();
+            resolve(collected);
+          } else {
+            worker.postMessage(requests[collected.length]);
+          }
+        };
+        worker.postMessage(requests[0]);
+      }),
+    { bytes: bytes.toString('base64'), followUps },
+  );
+  assert.ok(results[0].test_stages.includes('scanning'));
+  followUps.forEach((options, i) => {
+    const actual = results[i + 1];
+    assert.deepEqual(actual.test_stages, ['calculating'], 'Follow-up analysis must not rescan');
+    const expected = analyzeNatively(multi, options);
+    assert.equal(actual.total_bytes, expected.total_bytes, JSON.stringify(options));
+    assert.deepEqual(
+      actual.points.map((point) => point.bytes),
+      expected.points.map((point) => point.bytes),
+      JSON.stringify(options),
+    );
+  });
+}
+
 async function testWorkerErrors(page) {
   await assert.rejects(
     () => analyzeInBrowser(page, audio, { stream: 'combined' }),
@@ -459,6 +510,8 @@ async function testWorkerErrors(page) {
 async function testCancelAndUnreadableFile(page) {
   await page.locator('#file').setInputFiles(video);
   await page.locator('#cancel').click();
+  await waitForState(page, 'canceled');
+  assert.equal(await page.locator('#message.error').count(), 0, 'Canceling is not an error');
   assert.equal(await page.locator('#stream').isEnabled(), true);
   assert.equal(await page.locator('#analysis-progress').isVisible(), false);
 
@@ -695,9 +748,13 @@ async function testScrollAndCancel(page) {
     const rect = document.querySelector('.chart-panel').getBoundingClientRect();
     return rect.top >= -1 && rect.top < 50;
   });
+  // A new file needs a fresh scan, which is slow enough to cancel; settings stay locked meanwhile.
+  await chooseFile(page, multi);
   await page.locator('#analyze').click();
+  assert.equal(await page.locator('#mode').isDisabled(), true);
   await page.locator('#cancel').click();
   assert.equal(await page.locator('#analyze').isEnabled(), true);
+  assert.equal(await page.locator('#mode').isEnabled(), true);
 }
 
 /** Mobile browser emulation, with normal motion and first-analysis layout changes. */
@@ -739,6 +796,12 @@ async function testMobile(browser) {
   );
   await mobile.locator('#chart svg').dispatchEvent('pointerleave', { pointerType: 'touch' });
   assert.equal(await mobile.locator('#tooltip-range').textContent(), '1–2 s');
+  // Scrolling resizes the viewport height as the address bar hides; that must not redraw.
+  await mobile.setViewportSize({ width: PHONE.width, height: PHONE.height - 60 });
+  await mobile.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+  assert.equal(await mobile.locator('#tooltip-range').textContent(), '1–2 s');
   // Tapping elsewhere hides it.
   await mobile.locator('#file-info-title').tap();
   assert.equal(await mobile.locator('#tooltip-range').textContent(), '');
@@ -763,6 +826,7 @@ try {
   await testSegmentAndBandwidthPanels(page);
   await testMetadataProbe(page);
   await testNativeParity(page);
+  await testReanalysisReusesScan(page);
   await testWorkerErrors(page);
   await testCancelAndUnreadableFile(page);
   await testFileInformation(page);

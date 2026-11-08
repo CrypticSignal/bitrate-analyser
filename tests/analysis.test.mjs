@@ -1,6 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { analyze, parsePacket, normalizeMetadata, playbackStreams } from '../src/analysis.js';
+import {
+  analyze,
+  normalizeMetadata,
+  packetRecord,
+  parsePacket,
+  playbackStreams,
+  timedPacket,
+} from '../src/analysis.js';
 
 test('exactly three seconds retains all three full intervals', () => {
   const r = analyze(
@@ -377,4 +384,12 @@ test('extreme bitrate ranges locate first tied interval and actual partial bound
   );
   assert.deepEqual(gop.bitrate_ranges.max, { start: 1, end: 4, count: 1, partial: false });
   assert.deepEqual(gop.bitrate_ranges.min, { start: 0, end: 1, count: 1, partial: false });
+});
+
+test('packet records keep both timestamps so either basis can be analysed later', () => {
+  const record = packetRecord({ pts_time: '0.08', dts_time: 'N/A', size: '500', flags: '__' });
+  assert.deepEqual(record, { pts: 0.08, dts: NaN, size: 500, duration: 0, keyframe: false });
+  assert.equal(timedPacket(record, 'pts').time, 0.08);
+  assert.equal(timedPacket(record, 'dts'), false);
+  assert.equal(packetRecord({ side_data_type: 'Skip Samples' }), null);
 });

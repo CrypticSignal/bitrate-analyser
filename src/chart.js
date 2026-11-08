@@ -1,5 +1,5 @@
 /** Draws the bitrate chart as an inline SVG, with a hover / tap tooltip. */
-import { intervalAtTime, intervalBounds, intervalPath } from './chart-intervals.js';
+import { intervalAtTime, intervalBounds, intervalPath, timeAxis } from './chart-intervals.js';
 import { $, formatNumber } from './ui.js';
 
 const HEIGHT = 350;
@@ -166,7 +166,7 @@ function comparisonNote(result, compare) {
   return result.comparison_unavailable || 'Comparison requires both a video and an audio track.';
 }
 
-/** Horizontal grid lines with bitrate labels, and time labels along the bottom. */
+/** Horizontal grid lines with bitrate labels, and ticks at round times along the bottom. */
 function axes(right, start, end, max, x) {
   let svg = '';
   for (let i = 0; i <= 4; i++) {
@@ -174,8 +174,13 @@ function axes(right, start, end, max, x) {
     const bitrate = max * (1 - i / 4);
     svg += `<line x1="${LEFT}" y1="${lineY}" x2="${right}" y2="${lineY}" stroke="#2b3c3b"/>`;
     svg += `<text x="${LEFT - 13}" y="${lineY + 4}" text-anchor="end">${formatNumber(bitrate, 3)}</text>`;
-    const time = start + ((end - start) * i) / 4;
-    svg += `<text x="${x(time)}" y="${BOTTOM + 26}" text-anchor="middle">${formatNumber(time, 1)}s</text>`;
+  }
+  for (const tick of timeAxis(start, end)) {
+    const tickX = x(tick.time).toFixed(2);
+    // A label at the right edge is right-aligned so it is not cut off.
+    const anchor = x(tick.time) > right - 25 ? 'end' : 'middle';
+    svg += `<line x1="${tickX}" y1="${BOTTOM}" x2="${tickX}" y2="${BOTTOM + 6}" stroke="#2b3c3b"/>`;
+    svg += `<text x="${tickX}" y="${BOTTOM + 26}" text-anchor="${anchor}">${tick.label}</text>`;
   }
   return svg;
 }

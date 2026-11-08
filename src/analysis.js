@@ -294,24 +294,43 @@ export function parseCompactFields(parts) {
 }
 
 /**
- * Parses one compact packet line. Returns null for lines that are not packets (compact output
- * can put side data on its own line) and false for packets without a usable time or size.
+ * Parses one compact packet line on the chosen timestamp basis. Returns null for lines that are
+ * not packets (compact output can put side data on its own line) and false for packets without a
+ * usable time or size.
  */
 export function parsePacket(line, timestamp, fps = 0) {
-  return packetFromFields(parseCompactFields(line.trim().split('|')), timestamp, fps);
+  const record = packetRecord(parseCompactFields(line.trim().split('|')));
+  return record && timedPacket(record, timestamp, fps);
 }
 
-export function packetFromFields(fields, timestamp, fps = 0) {
+/**
+ * A packet's values with both timestamps kept (NaN when not reported), so either timestamp basis
+ * can be analysed later without scanning the file again. Returns null for non-packet lines.
+ */
+export function packetRecord(fields) {
   if (!('size' in fields)) return null;
-  const time = finiteNumber(fields[`${timestamp}_time`], NaN);
-  const size = finiteNumber(fields.size, -1);
-  if (!Number.isFinite(time) || size < 0) return false;
+  return {
+    pts: finiteNumber(fields.pts_time, NaN),
+    dts: finiteNumber(fields.dts_time, NaN),
+    size: finiteNumber(fields.size, -1),
+    duration: Math.max(0, finiteNumber(fields.duration_time)),
+    keyframe: (fields.flags || '').includes('K'),
+  };
+}
+
+/**
+ * The packet timed by `timestamp` ('pts' or 'dts'), or false if it has no usable time or size.
+ * A missing duration falls back to one frame at `fps`, when that is known.
+ */
+export function timedPacket(record, timestamp, fps = 0) {
+  const time = record[timestamp];
+  if (!Number.isFinite(time) || record.size < 0) return false;
   const frameDuration = Number.isFinite(fps) && fps > 0 ? 1 / fps : 0;
   return {
     time,
-    size,
-    duration: Math.max(0, finiteNumber(fields.duration_time)) || frameDuration,
-    keyframe: (fields.flags || '').includes('K'),
+    size: record.size,
+    duration: record.duration || frameDuration,
+    keyframe: record.keyframe,
   };
 }
 

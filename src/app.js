@@ -7,11 +7,19 @@ const WORKER_TIMEOUT_MS = 5 * 60 * 1000;
 const MAX_TABLE_ROWS = 500;
 const results = document.querySelector('.results');
 
+// Read once from the page so the markup stays the only copy of these texts.
+const ANALYZE_LABEL = $('analyze').innerHTML;
+const SECONDS_HINT = $('partial-hint').textContent;
+
 let result = null; // The latest analysis result.
 let fileMetadata = null; // Streams and format of the selected file.
-let activeWorker = null;
+// The selected file's worker. After its first analysis it keeps the scanned packets, so changing
+// settings and analysing again skips the scan. Null when there is none.
+let worker = null;
+let running = false; // Whether the worker is handling a request.
 let activeTimer = null;
 let chartScrollFrame = null;
+let chartWidth = 0;
 
 // ---------------------------------------------------------------------------------------------
 // Settings form
@@ -69,7 +77,7 @@ function updateMode() {
   $('partial').disabled = gop;
   $('partial-hint').textContent = gop
     ? 'GOP boundaries are determined by keyframe packet timestamps.'
-    : 'Bitrate = packet bits in each fixed 1-second interval ÷ 1 second. By default, only full intervals within the stream’s packet timeline are included.';
+    : SECONDS_HINT;
 }
 
 function analysisRequest(file) {
@@ -89,50 +97,66 @@ function analysisRequest(file) {
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Starts a probe worker for `request`. Progress and errors are handled here; every other
- * message is passed to `onMessage`. Only the most recently started worker is listened to.
+ * Sends `request` to the file's worker, starting one if needed. Progress and errors are handled
+ * here; every other message is passed to `onMessage`. Messages from replaced workers are ignored.
  */
-function startWorker(request, { onMessage, errorMessage, timeoutMessage }) {
-  const worker = new Worker(new URL('./probe-worker.js', import.meta.url), { type: 'module' });
-  activeWorker = worker;
-  worker.onmessage = ({ data }) => {
-    if (activeWorker !== worker) return;
+function runInWorker(request, { onMessage, errorMessage, timeoutMessage }) {
+  worker ??= new Worker(new URL('./probe-worker.js', import.meta.url), { type: 'module' });
+  const current = worker;
+  current.onmessage = ({ data }) => {
+    if (worker !== current) return;
     if (data.type === 'progress') {
       showProgress(data);
       $('message').textContent = data.message;
     } else if (data.type === 'error') {
-      fail(data.message);
+      fail(data.message, { keepWorker: data.packetsKept });
     } else {
       onMessage(data);
     }
   };
-  worker.onerror = () => {
-    if (activeWorker === worker) fail(errorMessage);
+  current.onerror = () => {
+    if (worker === current) fail(errorMessage);
   };
-  worker.postMessage(request);
+  running = true;
+  $('settings').disabled = true;
+  $('analyze').disabled = true;
+  $('cancel').hidden = false;
+  current.postMessage(request);
   activeTimer = setTimeout(() => fail(timeoutMessage), WORKER_TIMEOUT_MS);
 }
 
-/** Stops any running worker and resets the form controls. */
+/** Discards the worker, and with it any scanned packets. */
+function stopWorker() {
+  if (worker) worker.terminate();
+  worker = null;
+}
+
+/** Ends the current request and resets the form controls. The worker is kept. */
 function finish() {
-  if (activeWorker) activeWorker.terminate();
-  activeWorker = null;
+  running = false;
   clearTimeout(activeTimer);
+  $('settings').disabled = false;
   $('analyze').disabled = false;
-  $('analyze').innerHTML = 'Analyze media <span>↗</span>';
+  $('analyze').innerHTML = ANALYZE_LABEL;
   $('cancel').hidden = true;
-  $('stream').disabled = false;
   $('analysis-progress').hidden = true;
 }
 
-function fail(message) {
-  $('message').className = 'error';
-  $('message').textContent = message;
-  results.dataset.state = 'error';
+/** Shows an error. The worker is discarded unless it reports that its scan is still usable. */
+function fail(message, { keepWorker = false } = {}) {
+  if (!keepWorker) stopWorker();
   finish();
+  setStatus('error', message);
+  $('message').className = 'error';
 }
 
-/** `state` is one of reading, ready, analysing, complete or error; tests wait on it. */
+function cancel() {
+  stopWorker();
+  finish();
+  setStatus('canceled', 'Analysis canceled. Your file has not left your device.');
+}
+
+/** `state` is one of reading, ready, analysing, complete, canceled or error; tests wait on it. */
 function setStatus(state, message) {
   $('message').className = '';
   $('message').textContent = message;
@@ -152,7 +176,8 @@ function showProgress({ message, percent }) {
 
 function onFileChanged() {
   cancelChartScroll();
-  if (activeWorker) fail('Source changed. Start a new analysis.');
+  if (running) fail('Source changed. Start a new analysis.');
+  stopWorker();
   fileMetadata = null;
   $('analysis-progress').hidden = true;
   populatePairing(null, true);
@@ -166,13 +191,10 @@ function onFileChanged() {
   setStreamOptions(null, 'auto');
   if (!file) return;
 
-  $('analyze').disabled = true;
-  $('stream').disabled = true;
-  $('cancel').hidden = false;
   setStatus('reading', 'Reading stream information…');
   showProgress({ message: 'Reading stream information…' });
   try {
-    startWorker(
+    runInWorker(
       { file, metadataOnly: true },
       {
         onMessage: (data) => {
@@ -181,6 +203,8 @@ function onFileChanged() {
           showFileInfo(data.metadata, file);
           populatePairing(data.metadata, true);
           setStreamOptions(data.metadata, 'auto');
+          // This worker only read metadata and has closed; analysis needs a new one.
+          stopWorker();
           finish();
           setStatus('ready', 'Choose a stream, then analyze the media.');
         },
@@ -220,14 +244,11 @@ function onAnalyze(event) {
   }
 
   moveFileInfoBelowEstimate();
-  $('analyze').disabled = true;
-  $('analyze').textContent = 'Analyzing locally…';
-  $('cancel').hidden = false;
   showProgress({ message: 'Starting local analysis…' });
   setStatus('analysing', 'Starting local analysis…');
   const selection = $('stream').value;
   try {
-    startWorker(analysisRequest(file), {
+    runInWorker(analysisRequest(file), {
       onMessage: (data) => {
         if (data.type === 'metadata') {
           populatePairing(data.metadata);
@@ -244,6 +265,7 @@ function onAnalyze(event) {
         'The browser could not run FFprobe. Check that the WASM assets are served correctly, or try a smaller file or another browser.',
       timeoutMessage: 'Analysis exceeded five minutes. Try a shorter clip or a faster device.',
     });
+    $('analyze').textContent = 'Analyzing locally…';
   } catch (error) {
     fail(error.message);
   }
@@ -256,7 +278,7 @@ function scrollToChart(completedResult) {
   chartScrollFrame = requestAnimationFrame(() => {
     chartScrollFrame = requestAnimationFrame(() => {
       chartScrollFrame = null;
-      if (activeWorker || result !== completedResult) return;
+      if (running || result !== completedResult) return;
       const chart = document.querySelector('.chart-panel');
       const immediate = window.matchMedia(
         '(max-width: 720px), (pointer: coarse), (prefers-reduced-motion: reduce)',
@@ -360,16 +382,11 @@ function showDetails(r) {
 function partialSecondsMessage(r) {
   if (r.mode !== 'seconds' || !r.partial_seconds.length) return '';
   const count = r.partial_seconds.length;
-  const shortTime = (value) =>
-    value
-      .toFixed(3)
-      .replace(/\.000$/, '')
-      .replace(/^-0$/, '0');
   const ranges = r.partial_seconds
     .map((second) => {
       const start = Math.max(second, r.first_timestamp);
       const end = Math.min(second + 1, r.end_timestamp);
-      return `${shortTime(start)}-${shortTime(end)} s`;
+      return `${formatNumber(start, 3)}-${formatNumber(end, 3)} s`;
     })
     .join(', ');
   const treatment = r.include_partial
@@ -453,13 +470,18 @@ for (const type of ['dragover', 'dragleave', 'drop']) {
 $('stream').addEventListener('change', updateMode);
 $('mode').addEventListener('change', updateMode);
 $('analysis-form').addEventListener('submit', onAnalyze);
-$('cancel').addEventListener('click', () =>
-  fail('Analysis canceled. Your file has not left your device.'),
-);
+$('cancel').addEventListener('click', cancel);
 
 $('filled').addEventListener('change', redrawChart);
 $('compare').addEventListener('change', redrawChart);
-window.addEventListener('resize', redrawChart);
+// Redraw only when the chart's width changes. Mobile browsers resize the window as the address
+// bar hides while scrolling, which would otherwise redraw and close a tapped tooltip.
+new ResizeObserver(([entry]) => {
+  const width = entry.contentRect.width;
+  if (width === chartWidth) return;
+  chartWidth = width;
+  redrawChart();
+}).observe($('chart'));
 document.addEventListener('pointerdown', (event) => {
   if (!event.target.closest('#chart')) hideTooltip();
 });

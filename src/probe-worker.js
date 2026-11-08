@@ -4,16 +4,20 @@
  *   streams   – file metadata only (when metadataOnly is set)
  *   metadata  – metadata and the resolved stream selection, before calculating
  *   result    – the finished analysis
- *   error     – { message }
- * Each worker handles a single request and then closes.
+ *   error     – { message, packetsKept }
+ * A metadataOnly worker closes after replying. Otherwise the worker scans the file once and keeps
+ * its packets, so later requests for the same file (another stream, timestamp basis or setting)
+ * are answered without scanning again. Each worker runs FFprobe only once, so a new file needs a
+ * new worker.
  */
 import createFFmpegCore from './vendor/ffmpeg-core.js';
 import {
   analyze,
   normalizeMetadata,
-  packetFromFields,
+  packetRecord,
   parseCompactFields,
   playbackStreams,
+  timedPacket,
 } from './analysis.js';
 import { scanProgress } from './progress.js';
 
@@ -29,18 +33,59 @@ const METADATA_ENTRIES = [
   'program_version=version',
 ].join(':');
 
-self.onmessage = async ({ data }) => {
-  let core;
-  let mounted = false;
-  try {
-    const { file, metadataOnly = false } = data;
-    if (!file?.size) throw new Error('Choose a nonempty media file.');
-    postProgress('loading', 'Loading FFprobe WebAssembly…');
-    core = await loadCore();
-    const path = mountFile(core, file);
-    mounted = true;
+// The finished scan of this worker's file: { metadata, packetsByStream, version, packetCount }.
+let scan = null;
 
-    const output = collectOutput(core, data);
+self.onmessage = async ({ data }) => {
+  try {
+    if (data.metadataOnly) {
+      const probe = await runProbe(data, true);
+      self.postMessage({
+        type: 'streams',
+        metadata: probe.metadata,
+        scanned_packets: probe.packetCount,
+      });
+      self.close();
+      return;
+    }
+
+    if (scan) {
+      postProgress('calculating', 'Recalculating from the earlier scan…');
+    } else {
+      scan = await runProbe(data, false);
+      self.postMessage({
+        type: 'progress',
+        stage: 'calculating',
+        percent: null,
+        packets: scan.packetCount,
+        message: `Calculating bitrate statistics · ${scan.packetCount.toLocaleString()} packets read`,
+      });
+    }
+    self.postMessage({ type: 'result', result: analyzeSelection(data, scan) });
+  } catch (error) {
+    // Once the file has been scanned, the worker stays usable for other settings.
+    self.postMessage({
+      type: 'error',
+      message: error.message || String(error),
+      packetsKept: scan !== null,
+    });
+    if (!scan) self.close();
+  }
+};
+
+function postProgress(stage, message) {
+  self.postMessage({ type: 'progress', stage, percent: null, message });
+}
+
+/** Loads the engine, runs FFprobe once on the file and returns what it reported. */
+async function runProbe(request, metadataOnly) {
+  const { file } = request;
+  if (!file?.size) throw new Error('Choose a nonempty media file.');
+  postProgress('loading', 'Loading FFprobe WebAssembly…');
+  const core = await loadCore();
+  const path = mountFile(core, file);
+  try {
+    const output = collectOutput(core, request);
     postProgress(
       metadataOnly ? 'reading' : 'scanning',
       metadataOnly ? 'Reading stream information…' : 'Inspecting packets on your device…',
@@ -48,33 +93,28 @@ self.onmessage = async ({ data }) => {
     runFFprobe(core, probeArgs(path, metadataOnly), output);
 
     const metadata = normalizeMetadata({ streams: output.streams, format: output.format });
-    if (metadataOnly) {
-      self.postMessage({ type: 'streams', metadata, scanned_packets: output.packetCount });
-      return;
-    }
-    self.postMessage({
-      type: 'progress',
-      stage: 'calculating',
-      percent: null,
-      packets: output.packetCount,
-      message: `Calculating bitrate statistics · ${output.packetCount.toLocaleString()} packets read`,
-    });
-    const result = analyzeSelection(data, metadata, output);
-    self.postMessage({ type: 'result', result });
-  } catch (error) {
-    self.postMessage({ type: 'error', message: error.message || String(error) });
+    dropUnusedPackets(output.packetsByStream, metadata.streams);
+    return {
+      metadata,
+      packetsByStream: output.packetsByStream,
+      version: output.version,
+      packetCount: output.packetCount,
+    };
   } finally {
-    if (mounted) {
-      try {
-        core.FS.unmount('/input');
-      } catch {}
-    }
-    self.close();
+    try {
+      core.FS.unmount('/input');
+    } catch {}
   }
-};
+}
 
-function postProgress(stage, message) {
-  self.postMessage({ type: 'progress', stage, percent: null, message });
+/**
+ * Frees packets of streams that can never be analysed, such as subtitles. FFprobe reports the
+ * stream types after the packets, so they cannot be skipped during the scan.
+ */
+function dropUnusedPackets(packetsByStream, streams) {
+  for (const index of packetsByStream.keys()) {
+    if (!streams.some((stream) => stream.index === index)) packetsByStream.delete(index);
+  }
 }
 
 async function loadCore() {
@@ -131,13 +171,12 @@ function runFFprobe(core, args, output) {
 }
 
 /** Collects FFprobe's compact output line by line as it runs. */
-function collectOutput(core, { timestamp, timeline = {} }) {
+function collectOutput(core, { timeline = {} }) {
   const output = {
     streams: [],
     format: {},
     version: 'unknown',
     packetsByStream: new Map(),
-    rejectedByStream: new Map(),
     packetCount: 0,
     errors: '',
   };
@@ -156,7 +195,7 @@ function collectOutput(core, { timestamp, timeline = {} }) {
       if (output.packetCount > MAX_PACKETS) {
         throw new Error('This file exceeds the two million packet limit. Choose a shorter clip.');
       }
-      addPacket(output, fields, timestamp);
+      addPacket(output, fields);
       reportProgress(fields, output.packetCount);
     } else if (kind === 'stream') {
       output.streams.push({
@@ -176,14 +215,11 @@ function collectOutput(core, { timestamp, timeline = {} }) {
   return output;
 }
 
-function addPacket(output, fields, timestamp) {
-  const packet = packetFromFields(fields, timestamp);
+/** Stores a packet with both of its timestamps; which one is used is decided per analysis. */
+function addPacket(output, fields) {
+  const packet = packetRecord(fields);
   if (packet === null) return;
   const index = Number(fields.stream_index);
-  if (packet === false) {
-    output.rejectedByStream.set(index, (output.rejectedByStream.get(index) || 0) + 1);
-    return;
-  }
   if (!output.packetsByStream.has(index)) output.packetsByStream.set(index, []);
   output.packetsByStream.get(index).push(packet);
 }
@@ -211,9 +247,10 @@ function progressReporter(timeline) {
   };
 }
 
-/** Resolves the requested stream(s) and analyses their packets. */
-function analyzeSelection(request, metadata, output) {
+/** Resolves the requested stream(s) and analyses their packets from the scan. */
+function analyzeSelection(request, scan) {
   const { file, mode, timestamp, stream, includePartial, pairing = {} } = request;
+  const { metadata, packetsByStream } = scan;
   const combined = stream === 'combined';
   if (combined && mode === 'gop') {
     throw new Error(
@@ -234,20 +271,15 @@ function analyzeSelection(request, metadata, output) {
     : selectedStreams[0];
   self.postMessage({ type: 'metadata', metadata, stream: selected });
 
-  const result = analyze(packetsForTracks(selectedStreams, output.packetsByStream), {
+  const { packets, rejected } = packetsForTracks(selectedStreams, packetsByStream, timestamp);
+  const result = analyze(packets, {
     mode,
     includePartial,
     video: selected.type === 'video',
     compare: combined && selectedStreams.length === 2,
   });
   if (!combined && mode === 'seconds' && hasVideoAndAudio(metadata.streams)) {
-    addComparison(
-      result,
-      metadata.streams,
-      selectedStreams,
-      output.packetsByStream,
-      includePartial,
-    );
+    addComparison(result, metadata.streams, selectedStreams, packetsByStream, request);
   }
 
   return Object.assign(result, {
@@ -257,13 +289,10 @@ function analyzeSelection(request, metadata, output) {
     filename: file.name,
     file_bytes: file.size,
     timestamp: timestamp.toUpperCase(),
-    engine: { core: ENGINE, ffprobe: output.version },
+    engine: { core: ENGINE, ffprobe: scan.version },
     metadata,
     stream: selected,
-    rejected_packets: selectedStreams.reduce(
-      (sum, track) => sum + (output.rejectedByStream.get(track.index) || 0),
-      0,
-    ),
+    rejected_packets: rejected,
   });
 }
 
@@ -289,14 +318,15 @@ function hasVideoAndAudio(streams) {
  * during the scan, so this needs no second pass. The selected stream is paired with the default
  * track of the other type.
  */
-function addComparison(result, streams, selectedStreams, packetsByStream, includePartial) {
+function addComparison(result, streams, selectedStreams, packetsByStream, request) {
   const tracks = playbackStreams(streams).map(
     (track) => selectedStreams.find((s) => s.type === track.type && !s.attached_picture) || track,
   );
   try {
-    result.comparison_data = analyze(packetsForTracks(tracks, packetsByStream), {
+    const { packets } = packetsForTracks(tracks, packetsByStream, request.timestamp);
+    result.comparison_data = analyze(packets, {
       mode: 'seconds',
-      includePartial,
+      includePartial: request.includePartial,
       compare: true,
     });
     result.comparison_data.selected_streams = tracks;
@@ -305,18 +335,25 @@ function addComparison(result, streams, selectedStreams, packetsByStream, includ
   }
 }
 
-/** All packets of the given tracks, on their shared timeline (tracks are never re-aligned to zero). */
-function packetsForTracks(tracks, packetsByStream) {
+/**
+ * The tracks' packets timed by `timestamp`, on their shared timeline (tracks are never re-aligned
+ * to zero). Packets without a usable time or size are counted as rejected instead.
+ */
+function packetsForTracks(tracks, packetsByStream, timestamp) {
   const packets = [];
+  let rejected = 0;
   for (const track of tracks) {
-    for (const packet of packetsByStream.get(track.index) || []) {
-      // A video packet without a duration lasts one frame at the average frame rate.
-      if (!packet.duration && track.type === 'video' && track.fps > 0) {
-        packet.duration = 1 / track.fps;
+    // A video packet without a duration lasts one frame at the average frame rate.
+    const fps = track.type === 'video' ? track.fps : 0;
+    for (const record of packetsByStream.get(track.index) || []) {
+      const packet = timedPacket(record, timestamp, fps);
+      if (!packet) {
+        rejected++;
+        continue;
       }
       packet.media_type = track.type;
       packets.push(packet);
     }
   }
-  return packets;
+  return { packets, rejected };
 }
