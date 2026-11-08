@@ -217,6 +217,18 @@ aside {
   border-radius: 4px;
 }
 
+/* Groups the settings so they can all be disabled while the worker is busy. */
+#settings {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+#settings:disabled {
+  opacity: 0.6;
+}
+
 /* The file input fills the drop zone invisibly, so clicking anywhere opens the file picker. */
 .dropzone {
   border: 1px dashed #53644f;

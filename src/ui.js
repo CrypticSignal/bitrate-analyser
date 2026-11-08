@@ -4,8 +4,9 @@ export const $ = (id) => document.getElementById(id);
 
 /** Formats a number for display, showing `digits` decimals unless the value is a whole number. */
 export function formatNumber(value, digits = 2) {
-  const number = Number(value);
-  const isWhole = Number.isInteger(Number(number.toFixed(digits)));
+  // Rounding first means a tiny negative value shows as 0 rather than -0.
+  const number = Number(Number(value).toFixed(digits)) || 0;
+  const isWhole = Number.isInteger(number);
   return number.toLocaleString(undefined, {
     maximumFractionDigits: digits,
     minimumFractionDigits: isWhole ? 0 : digits,

@@ -1,6 +1,6 @@
 /** The "HLS / DASH segment analysis" panel. */
 import { analyzeSegments, localPath, parseDash, parseHls } from './segments.js';
-import { $, downloadFile, tableRow } from './ui.js';
+import { $, downloadFile, formatNumber, tableRow } from './ui.js';
 
 const MAX_MANIFEST_BYTES = 5 * 1024 * 1024;
 // The segment limit, plus room for manifests and initialization files.
@@ -12,9 +12,6 @@ let representations = [];
 let segmentResult = null;
 // Increases whenever the selection changes, so a slow manifest read can tell it is stale.
 let generation = 0;
-
-const formatNumber = (value) =>
-  Number(value.toFixed(3)).toLocaleString(undefined, { maximumFractionDigits: 3 });
 
 function showError(message) {
   $('segment-status').textContent = message;
@@ -84,8 +81,8 @@ function calculate() {
 
 function showResult(r) {
   $('segment-summary').textContent =
-    `${r.points.length} segments · ${formatNumber(r.duration_seconds)} s · ` +
-    `${formatNumber(r.average_mbps)} Mbps average · ${formatNumber(r.peak_mbps)} Mbps peak · ` +
+    `${r.points.length} segments · ${formatNumber(r.duration_seconds, 3)} s · ` +
+    `${formatNumber(r.average_mbps, 3)} Mbps average · ${formatNumber(r.peak_mbps, 3)} Mbps peak · ` +
     `${r.initialization_bytes.toLocaleString()} initialization bytes (separate)`;
   $('segment-rows').replaceChildren(
     ...r.points
@@ -94,9 +91,9 @@ function showResult(r) {
         tableRow([
           point.segment,
           point.path,
-          formatNumber(point.duration),
+          formatNumber(point.duration, 3),
           point.bytes.toLocaleString(),
-          formatNumber(point.bitrate_mbps),
+          formatNumber(point.bitrate_mbps, 3),
         ]),
       ),
   );

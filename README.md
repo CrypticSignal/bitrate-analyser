@@ -28,9 +28,11 @@ Selecting a file loads container and audio/video track information before analys
 
 Successful analysis scrolls to the graph; the four bitrate cards and Analysis details follow it. Mobile uses an immediate scroll, while desktop uses smooth scrolling unless reduced motion is preferred.
 
-Progress shows engine loading, stream discovery, packet scanning, and calculation stages. Scan percentages estimate timestamp coverage using the metadata probe; missing duration gives an indeterminate bar with packet counts. Updates are throttled, require no extra scan, and reach 100% only after successful analysis.
+Progress shows engine loading, stream discovery, packet scanning, and calculation stages. Scan percentages estimate timestamp coverage using the metadata probe; missing duration gives an indeterminate bar with packet counts. Updates are throttled, require no extra scan, and reach 100% only after successful analysis. Settings are locked while the file is read or analyzed.
 
-Charts show independent horizontal segments spanning each bitrate interval, without vertical connectors, with dots marking interval ends: the value for 53–54 s is marked at 54 s. Hovering or tapping highlights the entire interval and shows its range and bitrate in a floating tooltip beside the pointer or touch position. A tapped tooltip stays visible until you tap elsewhere. Partial edges show their actual timeline bounds; their rates still use a one-second divisor. Filled areas are enabled by default and can be turned off. Long charts preserve sampled extrema; hovering uses the full interval data. JSON retains the selected analysis and available comparison data; CSV follows the displayed chart, including comparison components; SVG exports the displayed chart. GOP tables show up to 500 rows. Rates use decimal Mbps in exports, with kbps displayed for individual audio analysis and Mbps for comparison overlays. Displayed values use three decimal places, omitting decimals for whole numbers.
+The first analysis of a file scans its packets once and keeps them. Analyzing again with another stream, timestamp basis, or partial-second setting recalculates from that scan without reading the file again. Choosing a new file or canceling discards the scan.
+
+The time axis is labeled at round times, written as m:ss or h:mm:ss once the timeline reaches a minute. Charts show independent horizontal segments spanning each bitrate interval, without vertical connectors, with dots marking interval ends: the value for 53–54 s is marked at 54 s. Hovering or tapping highlights the entire interval and shows its range and bitrate in a floating tooltip beside the pointer or touch position. A tapped tooltip stays visible until you tap elsewhere. Partial edges show their actual timeline bounds; their rates still use a one-second divisor. Filled areas are enabled by default and can be turned off. Long charts preserve sampled extrema; hovering uses the full interval data. JSON retains the selected analysis and available comparison data; CSV follows the displayed chart, including comparison components; SVG exports the displayed chart. GOP tables show up to 500 rows. Rates use decimal Mbps in exports, with kbps displayed for individual audio analysis and Mbps for comparison overlays. Displayed values use three decimal places, omitting decimals for whole numbers.
 
 ### Calculation rules
 
@@ -102,7 +104,7 @@ Plain JavaScript modules in `src/`, with no framework. `npm run build` copies th
 | `probe-worker.js`    | Web worker that runs FFprobe WebAssembly on the selected file               |
 | `analysis.js`        | Pure calculations: per-second and GOP bitrates, metadata and packet parsing |
 | `segments.js`        | Pure calculations: HLS / DASH manifest parsing and segment bitrates         |
-| `chart-intervals.js` | Pure calculations: interval bounds and chart paths                          |
+| `chart-intervals.js` | Pure calculations: interval bounds, chart paths and time-axis labels        |
 | `progress.js`        | Pure calculations: scan progress estimate                                   |
 | `bandwidth.js`       | Pure calculations: bandwidth estimate                                       |
 
@@ -114,7 +116,7 @@ Code is formatted with Prettier: run `npm run format` before committing (CI runs
 
 Pushes to `main` run verification, then deploy `dist/` to GitHub Pages. Repository Settings → Pages must use **GitHub Actions**. Other static hosts must serve JavaScript and `application/wasm` with same-origin workers/assets. COOP/COEP headers are unnecessary; the WASM asset is about 31 MiB.
 
-The pinned engine is `@ffmpeg/core@0.12.10` (FFprobe 5.1.4). Files are read in slices through WORKERFS in a disposable worker; packet records still consume memory. Analysis is limited to two million scanned packets across all streams, two million timestamp intervals, and five minutes. Cancel terminates the worker.
+The pinned engine is `@ffmpeg/core@0.12.10` (FFprobe 5.1.4). Files are read in slices through WORKERFS in a per-file worker; its packet records consume memory until another file is chosen. Analysis is limited to two million scanned packets across all streams, two million timestamp intervals, and five minutes. Cancel terminates the worker.
 
 Codec support depends on the WASM build. Multi-gigabyte inputs and Safari/Firefox have not been validated; Chromium desktop/mobile layouts are tested. A fresh visit needs the app assets; this is not an offline-cached PWA.
 
